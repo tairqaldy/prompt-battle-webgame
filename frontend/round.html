@@ -27,33 +27,25 @@
         </div>
 
         <div class="game-layout">
-            <div class="image-section">
-                <div class="image-container">
-                    <div class="image-placeholder">
-                        <span class="image-label">IMAGE</span>
-                        <div class="mountain-sketch">
-                            <div class="mountain-range">
-                                <div class="peak"></div>
-                                <div class="peak"></div>
-                                <div class="peak"></div>
-                            </div>
-                            <div class="stick-figure">🧗</div>
-                            <div class="vehicle">🚙</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                  <div class="image-section">
+                      <div class="image-container">
+                          <iframe id="game-image" src="" width="100%" height="400" frameborder="0"></iframe>
+                      </div>
+                  </div>
 
             <div class="prompt-section">
                 <div class="character-count">
                     <span id="char-count">2</span> / <span id="char-limit">100</span> characters used
                 </div>
-                <textarea 
-                    id="prompt-input" 
-                    placeholder="hi..." 
+                <textarea
+                    id="prompt-input"
+                    placeholder="Describe what you see in the image..."
                     maxlength="100"
                     oninput="updateCharCount()"
                 ></textarea>
+                <button id="submit-btn" class="btn btn-primary" onclick="submitPrompt()" style="margin-top: 10px;">
+                    Submit Prompt
+                </button>
                 <div class="accuracy-display">
                     Current Accuracy: <span id="accuracy">0.00%</span>
                 </div>

@@ -36,7 +36,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     if (roundData) {
         // Initialize UI
-        updateTimer();
         updateCharCount();
         
         // Start timer if round is active
@@ -61,6 +60,12 @@ async function loadRoundData() {
             
             document.getElementById('char-limit').textContent = '100'; // Default limit
             
+            // Load the image
+            const gameImage = document.getElementById('game-image');
+            if (gameImage && roundData.imagePath) {
+                gameImage.src = roundData.imagePath;
+            }
+            
             // Update room info
             const roomInfo = document.querySelector('.room-info');
             if (roomInfo) {
@@ -75,6 +80,9 @@ async function loadRoundData() {
             // Calculate remaining time
             const elapsed = Math.floor((Date.now() - roundData.createdAt) / 1000);
             timeRemaining = Math.max(0, roundData.timeLimit - elapsed);
+            
+            // Initialize timer display
+            updateTimer();
             
         } else {
             showError('Failed to load round data: ' + (response.error || 'Unknown error'));
@@ -137,7 +145,7 @@ async function handleTimeUp() {
         // Auto-submit if player hasn't submitted yet
         const promptText = document.getElementById('prompt-input').value.trim();
         if (promptText) {
-            await submitPrompt(promptText);
+            await submitPromptInternal(promptText);
         }
     }
     
@@ -145,10 +153,17 @@ async function handleTimeUp() {
     showFreezeScreen();
 }
 
-async function submitPrompt(promptText) {
+async function submitPromptInternal(promptText) {
     if (submitted) return;
     
     try {
+        // Disable submit button
+        const submitBtn = document.getElementById('submit-btn');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting...';
+        }
+        
         const response = await postJson(`/api/rounds/${roundId}/submit`, {
             playerName: currentPlayer.name,
             promptText: promptText
@@ -160,10 +175,23 @@ async function submitPrompt(promptText) {
             showFreezeScreen();
         } else {
             showError('Failed to submit prompt: ' + (response.error || 'Unknown error'));
+            
+            // Re-enable submit button
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Prompt';
+            }
         }
     } catch (error) {
         console.error('Error submitting prompt:', error);
         showError('Failed to submit prompt. Please try again.');
+        
+        // Re-enable submit button
+        const submitBtn = document.getElementById('submit-btn');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Submit Prompt';
+        }
     }
 }
 
@@ -191,17 +219,32 @@ window.updateCharCount = function() {
     if (count >= limit) {
         const promptText = input.value.trim();
         if (promptText) {
-            submitPrompt(promptText);
+            submitPromptInternal(promptText);
         }
     }
 };
 
 // Add submit button functionality
+window.submitPrompt = async function() {
+    const promptText = document.getElementById('prompt-input').value.trim();
+    if (!promptText) {
+        alert('Please enter a prompt before submitting');
+        return;
+    }
+    
+    if (submitted) {
+        alert('You have already submitted a prompt');
+        return;
+    }
+    
+    await submitPromptInternal(promptText);
+};
+
 document.addEventListener('keydown', async (event) => {
     if (event.key === 'Enter' && event.ctrlKey && !submitted) {
         const promptText = document.getElementById('prompt-input').value.trim();
         if (promptText) {
-            await submitPrompt(promptText);
+            await submitPromptInternal(promptText);
         }
     }
 });

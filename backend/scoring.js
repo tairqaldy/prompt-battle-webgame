@@ -191,11 +191,11 @@ function generateExplanation(score, overlap) {
  * @returns {object} Statistics
  */
 function getScoringStats(results) {
-  if (!results || results.length === 0) {
+  if (!results || !Array.isArray(results) || results.length === 0) {
     return { average: 0, highest: 0, lowest: 0, count: 0 };
   }
   
-  const scores = results.map(r => r.score);
+  const scores = results.map(r => r.score || 0);
   const sum = scores.reduce((a, b) => a + b, 0);
   
   return {

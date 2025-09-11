@@ -64,6 +64,198 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true });
 });
 
+// Check if room has active round
+app.get('/api/rooms/:code/active-round', async (req, res) => {
+  try {
+    const { code } = req.params;
+    
+    if (!validateRoomCode(code)) {
+      return res.status(400).json({ error: 'Invalid room code format' });
+    }
+    
+    const room = await dbManager.getRoom(code);
+    if (!room) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+    
+    // Find active round for this room
+    const db = dbManager.getDb();
+    const activeRound = await new Promise((resolve, reject) => {
+      db.get(
+        'SELECT * FROM rounds WHERE code = ? AND closedAt IS NULL ORDER BY createdAt DESC LIMIT 1',
+        [code],
+        (err, row) => {
+          if (err) reject(err);
+          else resolve(row);
+        }
+      );
+    });
+    
+    res.json({
+      success: true,
+      hasActiveRound: !!activeRound,
+      roundId: activeRound ? activeRound.id : null
+    });
+  } catch (error) {
+    console.error('Error checking active round:', error);
+    res.status(500).json({ error: 'Failed to check active round' });
+  }
+});
+
+// Placeholder image endpoint
+app.get('/api/placeholder/mountain-scene', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {
+                margin: 0;
+                padding: 20px;
+                background: linear-gradient(to bottom, #87CEEB 0%, #87CEEB 30%, #90EE90 30%, #90EE90 100%);
+                font-family: Arial, sans-serif;
+            }
+            .mountain-scene {
+                width: 100%;
+                max-width: 600px;
+                height: 400px;
+                margin: 0 auto;
+                position: relative;
+                background: linear-gradient(to bottom, #87CEEB 0%, #87CEEB 40%, #90EE90 40%, #90EE90 100%);
+                border-radius: 10px;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            }
+            .mountain {
+                position: absolute;
+                bottom: 40%;
+                width: 0;
+                height: 0;
+            }
+            .mountain-1 {
+                left: 10%;
+                border-left: 80px solid transparent;
+                border-right: 80px solid transparent;
+                border-bottom: 120px solid #8B4513;
+            }
+            .mountain-2 {
+                left: 25%;
+                border-left: 60px solid transparent;
+                border-right: 60px solid transparent;
+                border-bottom: 100px solid #A0522D;
+            }
+            .mountain-3 {
+                left: 40%;
+                border-left: 100px solid transparent;
+                border-right: 100px solid transparent;
+                border-bottom: 140px solid #8B4513;
+            }
+            .mountain-4 {
+                left: 60%;
+                border-left: 70px solid transparent;
+                border-right: 70px solid transparent;
+                border-bottom: 110px solid #A0522D;
+            }
+            .mountain-5 {
+                left: 75%;
+                border-left: 90px solid transparent;
+                border-right: 90px solid transparent;
+                border-bottom: 130px solid #8B4513;
+            }
+            .path {
+                position: absolute;
+                bottom: 20%;
+                left: 20%;
+                width: 60%;
+                height: 8px;
+                background: #654321;
+                border-radius: 4px;
+            }
+            .vehicle {
+                position: absolute;
+                bottom: 22%;
+                left: 30%;
+                width: 20px;
+                height: 12px;
+                background: #FF0000;
+                border-radius: 2px;
+            }
+            .person {
+                position: absolute;
+                bottom: 24%;
+                left: 45%;
+                width: 8px;
+                height: 16px;
+                background: #000000;
+                border-radius: 1px;
+            }
+            .person::after {
+                content: '';
+                position: absolute;
+                top: -4px;
+                left: -2px;
+                width: 12px;
+                height: 8px;
+                background: #FFE4B5;
+                border-radius: 50%;
+            }
+            .sun {
+                position: absolute;
+                top: 10%;
+                right: 15%;
+                width: 40px;
+                height: 40px;
+                background: #FFD700;
+                border-radius: 50%;
+            }
+            .cloud {
+                position: absolute;
+                top: 15%;
+                left: 10%;
+                width: 60px;
+                height: 20px;
+                background: white;
+                border-radius: 20px;
+            }
+            .cloud::before {
+                content: '';
+                position: absolute;
+                top: -10px;
+                left: 10px;
+                width: 30px;
+                height: 30px;
+                background: white;
+                border-radius: 50%;
+            }
+            .cloud::after {
+                content: '';
+                position: absolute;
+                top: -5px;
+                right: 10px;
+                width: 25px;
+                height: 25px;
+                background: white;
+                border-radius: 50%;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="mountain-scene">
+            <div class="sun"></div>
+            <div class="cloud"></div>
+            <div class="mountain mountain-1"></div>
+            <div class="mountain mountain-2"></div>
+            <div class="mountain mountain-3"></div>
+            <div class="mountain mountain-4"></div>
+            <div class="mountain mountain-5"></div>
+            <div class="path"></div>
+            <div class="vehicle"></div>
+            <div class="person"></div>
+        </div>
+    </body>
+    </html>
+  `);
+});
+
 // Room Management Routes
 app.post('/api/rooms', async (req, res) => {
   try {
@@ -167,7 +359,7 @@ app.post('/api/rooms/:code/join', async (req, res) => {
   }
 });
 
-app.get('/api/rooms/:code/players', (req, res) => {
+app.get('/api/rooms/:code/players', async (req, res) => {
   try {
     const { code } = req.params;
     
@@ -187,7 +379,7 @@ app.get('/api/rooms/:code/players', (req, res) => {
   }
 });
 
-app.delete('/api/rooms/:code/players/:playerId', (req, res) => {
+app.delete('/api/rooms/:code/players/:playerId', async (req, res) => {
   try {
     const { code, playerId } = req.params;
     
@@ -212,7 +404,7 @@ app.delete('/api/rooms/:code/players/:playerId', (req, res) => {
 });
 
 // Game Management Routes
-app.post('/api/rooms/:code/start', (req, res) => {
+app.post('/api/rooms/:code/start', async (req, res) => {
   try {
     const { code } = req.params;
     
@@ -232,7 +424,7 @@ app.post('/api/rooms/:code/start', (req, res) => {
     
     // For MVP, we'll use a placeholder image and prompt
     const roundId = generateRoundId();
-    const imagePath = '/placeholder/mountain-scene.jpg';
+    const imagePath = '/api/placeholder/mountain-scene';
     const sourcePrompt = 'A person climbing mountains with a vehicle on a winding path';
     const timeLimit = 60; // 60 seconds
     
@@ -254,11 +446,11 @@ app.post('/api/rooms/:code/start', (req, res) => {
   }
 });
 
-app.get('/api/rounds/:roundId', (req, res) => {
+app.get('/api/rounds/:roundId', async (req, res) => {
   try {
     const { roundId } = req.params;
     
-    const round = dbManager.getRound(roundId);
+    const round = await dbManager.getRound(roundId);
     if (!round) {
       return res.status(404).json({ error: 'Round not found' });
     }
@@ -284,7 +476,7 @@ app.get('/api/rounds/:roundId', (req, res) => {
   }
 });
 
-app.post('/api/rounds/:roundId/submit', (req, res) => {
+app.post('/api/rounds/:roundId/submit', async (req, res) => {
   try {
     const { roundId } = req.params;
     const { playerName, promptText } = req.body;
@@ -307,14 +499,14 @@ app.post('/api/rounds/:roundId/submit', (req, res) => {
     }
     
     // Check if player already submitted
-    const existingSubmissions = dbManager.getRoundSubmissions(roundId);
+    const existingSubmissions = await dbManager.getRoundSubmissions(roundId);
     const alreadySubmitted = existingSubmissions.some(s => s.playerName === playerName);
     
     if (alreadySubmitted) {
       return res.status(409).json({ error: 'Player has already submitted a prompt' });
     }
     
-    dbManager.submitPrompt(roundId, playerName, promptText.trim());
+    await dbManager.submitPrompt(roundId, playerName, promptText.trim());
     
     res.json({
       success: true,
@@ -326,28 +518,28 @@ app.post('/api/rounds/:roundId/submit', (req, res) => {
   }
 });
 
-app.get('/api/rounds/:roundId/results', (req, res) => {
+app.get('/api/rounds/:roundId/results', async (req, res) => {
   try {
     const { roundId } = req.params;
     
-    const round = dbManager.getRound(roundId);
+    const round = await dbManager.getRound(roundId);
     if (!round) {
       return res.status(404).json({ error: 'Round not found' });
     }
     
-    const submissions = dbManager.getRoundSubmissions(roundId);
-    const results = dbManager.getRoundResults(roundId);
+    const submissions = await dbManager.getRoundSubmissions(roundId);
+    const results = await dbManager.getRoundResults(roundId);
     
     // If no results yet, calculate them
     if (results.length === 0 && submissions.length > 0) {
       // Close the round
-      dbManager.closeRound(roundId);
+      await dbManager.closeRound(roundId);
       
       // Calculate scores for all submissions
       for (const submission of submissions) {
         const scoringResult = scoring.scoreAttempt(round.sourcePrompt, submission.promptText);
         
-        dbManager.saveResult(
+        await dbManager.saveResult(
           roundId,
           submission.playerName,
           submission.promptText,
@@ -358,7 +550,7 @@ app.get('/api/rounds/:roundId/results', (req, res) => {
       }
       
       // Get updated results
-      const updatedResults = dbManager.getRoundResults(roundId);
+      const updatedResults = await dbManager.getRoundResults(roundId);
       
       res.json({
         success: true,
@@ -388,7 +580,7 @@ app.get('/api/rounds/:roundId/results', (req, res) => {
   }
 });
 
-app.get('/api/rooms/:code/final-results', (req, res) => {
+app.get('/api/rooms/:code/final-results', async (req, res) => {
   try {
     const { code } = req.params;
     
@@ -396,12 +588,12 @@ app.get('/api/rooms/:code/final-results', (req, res) => {
       return res.status(400).json({ error: 'Invalid room code format' });
     }
     
-    const room = dbManager.getRoom(code);
+    const room = await dbManager.getRoom(code);
     if (!room) {
       return res.status(404).json({ error: 'Room not found' });
     }
     
-    const finalResults = dbManager.getRoomResults(code);
+    const finalResults = await dbManager.getRoomResults(code);
     
     res.json({
       success: true,
