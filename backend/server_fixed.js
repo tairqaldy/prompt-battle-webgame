@@ -167,7 +167,7 @@ app.post('/api/rooms/:code/join', async (req, res) => {
   }
 });
 
-app.get('/api/rooms/:code/players', (req, res) => {
+app.get('/api/rooms/:code/players', async (req, res) => {
   try {
     const { code } = req.params;
     
@@ -175,7 +175,7 @@ app.get('/api/rooms/:code/players', (req, res) => {
       return res.status(400).json({ error: 'Invalid room code format' });
     }
     
-    const players = dbManager.getRoomPlayers(code);
+    const players = await dbManager.getRoomPlayers(code);
     
     res.json({
       success: true,
@@ -187,7 +187,7 @@ app.get('/api/rooms/:code/players', (req, res) => {
   }
 });
 
-app.delete('/api/rooms/:code/players/:playerId', (req, res) => {
+app.delete('/api/rooms/:code/players/:playerId', async (req, res) => {
   try {
     const { code, playerId } = req.params;
     
@@ -195,7 +195,7 @@ app.delete('/api/rooms/:code/players/:playerId', (req, res) => {
       return res.status(400).json({ error: 'Invalid room code format' });
     }
     
-    const result = dbManager.removePlayer(playerId);
+    const result = await dbManager.removePlayer(playerId);
     
     if (result.changes === 0) {
       return res.status(404).json({ error: 'Player not found' });
@@ -212,7 +212,7 @@ app.delete('/api/rooms/:code/players/:playerId', (req, res) => {
 });
 
 // Game Management Routes
-app.post('/api/rooms/:code/start', (req, res) => {
+app.post('/api/rooms/:code/start', async (req, res) => {
   try {
     const { code } = req.params;
     
@@ -220,12 +220,12 @@ app.post('/api/rooms/:code/start', (req, res) => {
       return res.status(400).json({ error: 'Invalid room code format' });
     }
     
-    const room = dbManager.getRoom(code);
+    const room = await dbManager.getRoom(code);
     if (!room) {
       return res.status(404).json({ error: 'Room not found' });
     }
     
-    const players = dbManager.getRoomPlayers(code);
+    const players = await dbManager.getRoomPlayers(code);
     if (players.length < 2) {
       return res.status(400).json({ error: 'Need at least 2 players to start game' });
     }
@@ -236,7 +236,7 @@ app.post('/api/rooms/:code/start', (req, res) => {
     const sourcePrompt = 'A person climbing mountains with a vehicle on a winding path';
     const timeLimit = 60; // 60 seconds
     
-    dbManager.createRound(roundId, code, imagePath, sourcePrompt, timeLimit);
+    await dbManager.createRound(roundId, code, imagePath, sourcePrompt, timeLimit);
     
     res.json({
       success: true,
@@ -254,11 +254,11 @@ app.post('/api/rooms/:code/start', (req, res) => {
   }
 });
 
-app.get('/api/rounds/:roundId', (req, res) => {
+app.get('/api/rounds/:roundId', async (req, res) => {
   try {
     const { roundId } = req.params;
     
-    const round = dbManager.getRound(roundId);
+    const round = await dbManager.getRound(roundId);
     if (!round) {
       return res.status(404).json({ error: 'Round not found' });
     }
@@ -284,7 +284,7 @@ app.get('/api/rounds/:roundId', (req, res) => {
   }
 });
 
-app.post('/api/rounds/:roundId/submit', (req, res) => {
+app.post('/api/rounds/:roundId/submit', async (req, res) => {
   try {
     const { roundId } = req.params;
     const { playerName, promptText } = req.body;
@@ -297,7 +297,7 @@ app.post('/api/rounds/:roundId/submit', (req, res) => {
       return res.status(400).json({ error: 'Invalid prompt text' });
     }
     
-    const round = dbManager.getRound(roundId);
+    const round = await dbManager.getRound(roundId);
     if (!round) {
       return res.status(404).json({ error: 'Round not found' });
     }
@@ -307,14 +307,14 @@ app.post('/api/rounds/:roundId/submit', (req, res) => {
     }
     
     // Check if player already submitted
-    const existingSubmissions = dbManager.getRoundSubmissions(roundId);
+    const existingSubmissions = await dbManager.getRoundSubmissions(roundId);
     const alreadySubmitted = existingSubmissions.some(s => s.playerName === playerName);
     
     if (alreadySubmitted) {
       return res.status(409).json({ error: 'Player has already submitted a prompt' });
     }
     
-    dbManager.submitPrompt(roundId, playerName, promptText.trim());
+    await dbManager.submitPrompt(roundId, playerName, promptText.trim());
     
     res.json({
       success: true,
@@ -326,28 +326,28 @@ app.post('/api/rounds/:roundId/submit', (req, res) => {
   }
 });
 
-app.get('/api/rounds/:roundId/results', (req, res) => {
+app.get('/api/rounds/:roundId/results', async (req, res) => {
   try {
     const { roundId } = req.params;
     
-    const round = dbManager.getRound(roundId);
+    const round = await dbManager.getRound(roundId);
     if (!round) {
       return res.status(404).json({ error: 'Round not found' });
     }
     
-    const submissions = dbManager.getRoundSubmissions(roundId);
-    const results = dbManager.getRoundResults(roundId);
+    const submissions = await dbManager.getRoundSubmissions(roundId);
+    const results = await dbManager.getRoundResults(roundId);
     
     // If no results yet, calculate them
     if (results.length === 0 && submissions.length > 0) {
       // Close the round
-      dbManager.closeRound(roundId);
+      await dbManager.closeRound(roundId);
       
       // Calculate scores for all submissions
       for (const submission of submissions) {
         const scoringResult = scoring.scoreAttempt(round.sourcePrompt, submission.promptText);
         
-        dbManager.saveResult(
+        await dbManager.saveResult(
           roundId,
           submission.playerName,
           submission.promptText,
@@ -358,7 +358,7 @@ app.get('/api/rounds/:roundId/results', (req, res) => {
       }
       
       // Get updated results
-      const updatedResults = dbManager.getRoundResults(roundId);
+      const updatedResults = await dbManager.getRoundResults(roundId);
       
       res.json({
         success: true,
@@ -388,7 +388,7 @@ app.get('/api/rounds/:roundId/results', (req, res) => {
   }
 });
 
-app.get('/api/rooms/:code/final-results', (req, res) => {
+app.get('/api/rooms/:code/final-results', async (req, res) => {
   try {
     const { code } = req.params;
     
@@ -396,12 +396,12 @@ app.get('/api/rooms/:code/final-results', (req, res) => {
       return res.status(400).json({ error: 'Invalid room code format' });
     }
     
-    const room = dbManager.getRoom(code);
+    const room = await dbManager.getRoom(code);
     if (!room) {
       return res.status(404).json({ error: 'Room not found' });
     }
     
-    const finalResults = dbManager.getRoomResults(code);
+    const finalResults = await dbManager.getRoomResults(code);
     
     res.json({
       success: true,
@@ -419,55 +419,21 @@ app.get('*', (req, res) => {
   // Don't serve index.html for API routes
   if (req.path.startsWith('/api/')) {
     res.status(404).json({ error: 'API endpoint not found' });
-    return;
+  } else {
+    // Serve index.html for all other routes (SPA routing)
+    res.sendFile(path.join(frontendPath, 'index.html'));
   }
-  
-  // Serve index.html for all other routes (frontend routing)
-  res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  const timestamp = new Date().toISOString();
-  console.error(`[${timestamp}] Error:`, err);
-  
-  if (res.headersSent) {
-    return next(err);
-  }
-  
-  res.status(500).json({ 
-    error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
-  });
-});
-
-// Graceful shutdown
-process.on('SIGINT', () => {
-  console.log(`[${new Date().toISOString()}] Shutting down server...`);
-  dbManager.close();
-  process.exit(0);
-});
-
-process.on('SIGTERM', () => {
-  console.log(`[${new Date().toISOString()}] Shutting down server...`);
-  dbManager.close();
-  process.exit(0);
+  console.error(`[${new Date().toISOString()}] Server error:`, err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
 });
 
 // Initialize database and start server
-async function startServer() {
-  try {
-    // Wait for database initialization
-    await dbManager.init();
-    
-    app.listen(PORT, () => {
-      console.log(`[${new Date().toISOString()}] Prompt Battle WebGame server running on http://localhost:${PORT}`);
-      console.log(`[${new Date().toISOString()}] Frontend served from: ${frontendPath}`);
-    });
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Failed to start server:`, error);
-    process.exit(1);
-  }
-}
+dbManager.getDb(); // This will ensure the database is initialized and migrations run
 
-startServer();
+app.listen(PORT, () => {
+  console.log(`[${new Date().toISOString()}] Server running on http://localhost:${PORT}`);
+});
