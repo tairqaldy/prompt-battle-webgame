@@ -10,3 +10,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // TODO: Implement results functionality
 });
+
+// Global functions for inline onclick handlers
+window.nextRound = function() {
+    if (confirm('Start next round?')) {
+        window.location.href = 'round.html';
+    }
+};

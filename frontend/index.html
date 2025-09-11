@@ -9,13 +9,26 @@
 <body>
     <div class="container">
         <h1>Main Lobby</h1>
-        <div class="content">
-            <p>Welcome to Prompt Battle WebGame!</p>
-            <p>Choose an option below:</p>
-            <div class="actions">
-                <a href="host.html" class="btn btn-primary">Host Party</a>
-                <a href="guest.html" class="btn btn-secondary">Join Party</a>
-            </div>
+        
+        <div class="game-title">
+            <h2>Prompt Battle</h2>
+        </div>
+
+        <div class="main-menu">
+            <button class="menu-btn" onclick="window.location.href='host.html'">Create Party</button>
+            <button class="menu-btn" onclick="showJoinParty()">Join Party</button>
+            <button class="menu-btn" onclick="showHowToPlay()">How To Play</button>
+            <button class="menu-btn" onclick="showSettings()">Settings</button>
+        </div>
+
+        <div id="join-party-section" class="join-party" style="display: none;">
+            <label for="party-code">Enter Party Code</label>
+            <input type="text" id="party-code" placeholder="ABC123..." maxlength="6">
+            <button class="btn btn-primary" onclick="joinParty()">Join</button>
+        </div>
+
+        <div class="online-players">
+            <p>Number of players Online: <span id="player-count">156</span></p>
         </div>
     </div>
     <script type="module" src="js/lobby.js"></script>

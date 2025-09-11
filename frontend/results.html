@@ -9,9 +9,89 @@
 <body>
     <div class="container">
         <h1>Results Screen</h1>
-        <div class="content">
-            <p>Round results and similarity scores.</p>
-            <!-- Results-specific UI will be implemented here -->
+
+        <div class="results-layout">
+            <div class="player-performance">
+                <div class="performance-stats">
+                    <div class="stat-item">
+                        <label>Accuracy:</label>
+                        <span id="player-accuracy">[blank space]</span>
+                    </div>
+                    <div class="stat-item">
+                        <label>Score received:</label>
+                        <span id="player-score">[blank space]</span>
+                    </div>
+                </div>
+                
+                <div class="other-prompts">
+                    <h4>Prompt of Others.</h4>
+                    <div class="prompt-list">
+                        <div class="prompt-item">
+                            "PROMPT - NAME (60%)"
+                        </div>
+                        <div class="prompt-item">
+                            "Another prompt - PLAYER2 (45%)"
+                        </div>
+                        <div class="prompt-item">
+                            "Third prompt - PLAYER3 (30%)"
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="image-section">
+                <div class="image-container">
+                    <div class="image-placeholder">
+                        <span class="image-label">IMAGE</span>
+                        <div class="mountain-sketch">
+                            <div class="mountain-range">
+                                <div class="peak"></div>
+                                <div class="peak"></div>
+                                <div class="peak"></div>
+                            </div>
+                            <div class="stick-figure">🧗</div>
+                            <div class="vehicle">🚙</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="prompt-details">
+                    <div class="prompt-box">
+                        <label>Player's Prompt</label>
+                        <div id="player-prompt">"A mountain climber hiking with a jeep nearby"</div>
+                    </div>
+                    
+                    <div class="prompt-box">
+                        <label>Ground truth Prompt (revealed)</label>
+                        <div id="ground-truth">"A person climbing mountains with a vehicle on a winding path"</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="round-leaderboard">
+                <button class="next-round-btn" onclick="nextRound()">Next Round</button>
+                <p class="note">button for Host</p>
+                
+                <h4>Leader board (updated round-based)</h4>
+                <div class="leaderboard">
+                    <div class="leaderboard-header">
+                        <span class="header-name">NAME</span>
+                        <span class="header-score">SCORE</span>
+                    </div>
+                    <div class="leaderboard-item">
+                        <span class="player-name">1st NAME</span>
+                        <span class="score">1250</span>
+                    </div>
+                    <div class="leaderboard-item">
+                        <span class="player-name">2nd</span>
+                        <span class="score">1000</span>
+                    </div>
+                    <div class="leaderboard-item">
+                        <span class="player-name">3rd</span>
+                        <span class="score">750</span>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     <script type="module" src="js/results.js"></script>

@@ -8,10 +8,72 @@
 </head>
 <body>
     <div class="container">
-        <h1>Final Results Screen</h1>
-        <div class="content">
-            <p>Game completed! Final scores and rankings.</p>
-            <!-- Final results-specific UI will be implemented here -->
+        <h1>Final Results Screen (End of Game)</h1>
+
+        <div class="final-layout">
+            <div class="game-summary">
+                <div class="winner-section">
+                    <div class="winner-info">
+                        <label>Winner:</label>
+                        <span id="winner-name">NAME</span>
+                        <span id="winner-score">score</span>
+                    </div>
+                    
+                    <div class="best-prompt">
+                        <label>Best prompt of the game:</label>
+                        <div id="best-prompt-text">PROMPT</div>
+                        <span id="best-prompt-accuracy">(accuracy: 99%)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="final-leaderboard">
+                <h3>Final Leaderboard</h3>
+                <div class="leaderboard">
+                    <div class="leaderboard-header">
+                        <span class="header-name">name</span>
+                        <span class="header-score">score</span>
+                    </div>
+                    <div class="leaderboard-item">
+                        <span class="player-name">1st</span>
+                        <span class="score">2500</span>
+                    </div>
+                    <div class="leaderboard-item">
+                        <span class="player-name">2nd</span>
+                        <span class="score">2200</span>
+                    </div>
+                    <div class="leaderboard-item">
+                        <span class="player-name">3rd</span>
+                        <span class="score">1950</span>
+                    </div>
+                    <div class="leaderboard-item">
+                        <span class="player-name">4th</span>
+                        <span class="score">1700</span>
+                    </div>
+                    <div class="leaderboard-item">
+                        <span class="player-name">5th</span>
+                        <span class="score">1500</span>
+                    </div>
+                    <div class="leaderboard-item">
+                        <span class="player-name">6th</span>
+                        <span class="score">1300</span>
+                    </div>
+                    <div class="leaderboard-item">
+                        <span class="player-name">7th</span>
+                        <span class="score">1100</span>
+                    </div>
+                    <div class="leaderboard-item">
+                        <span class="player-name">8th</span>
+                        <span class="score">900</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="final-actions">
+            <button class="btn btn-secondary" onclick="exitGame()">Exit Game.</button>
+            <button class="btn btn-primary" onclick="playAgain()">Play Again</button>
+            <button class="btn btn-secondary" onclick="returnToLobby()">Return to lobby</button>
         </div>
     </div>
     <script type="module" src="js/final.js"></script>

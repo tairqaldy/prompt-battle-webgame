@@ -9,9 +9,106 @@
 <body>
     <div class="container">
         <h1>Freeze Screen</h1>
-        <div class="content">
-            <p>Round ended! Calculating scores...</p>
-            <!-- Freeze-specific UI will be implemented here -->
+        <p class="subtitle">Has same as In-Game Round Menu, but just adds half-transparent layer with text</p>
+
+        <!-- Same content as round.html but with overlay -->
+        <div class="game-header">
+            <div class="timer-section">
+                <div class="timer">
+                    <span id="timer-display">00:00</span> / <span id="timer-total">01:00</span>
+                </div>
+                <div class="timer-label">Timer (countdown)</div>
+            </div>
+            
+            <div class="room-info">
+                <span class="room-code">Room: XY2224</span>
+                <button class="action-btn" onclick="leaveRoom()">Leave</button>
+                <button class="action-btn" onclick="shareRoom()">Share</button>
+                <span class="round-info">Round 2/3</span>
+            </div>
+        </div>
+
+        <div class="game-layout">
+            <div class="image-section">
+                <div class="image-container">
+                    <div class="image-placeholder">
+                        <span class="image-label">IMAGE</span>
+                        <div class="mountain-sketch">
+                            <div class="mountain-range">
+                                <div class="peak"></div>
+                                <div class="peak"></div>
+                                <div class="peak"></div>
+                            </div>
+                            <div class="stick-figure">🧗</div>
+                            <div class="vehicle">🚙</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="prompt-section">
+                <div class="character-count">
+                    <span id="char-count">2</span> / <span id="char-limit">100</span> characters used
+                </div>
+                <textarea 
+                    id="prompt-input" 
+                    placeholder="hi..." 
+                    maxlength="100"
+                    readonly
+                ></textarea>
+                <div class="accuracy-display">
+                    Current Accuracy: <span id="accuracy">0.00%</span>
+                </div>
+            </div>
+
+            <div class="leaderboard-section">
+                <h3>Leaderboard</h3>
+                <div class="leaderboard">
+                    <div class="leaderboard-item">
+                        <span class="rank">1st</span>
+                        <span class="score">(18%) +1000p</span>
+                    </div>
+                    <div class="leaderboard-item">
+                        <span class="rank">2nd</span>
+                        <span class="score">+750p</span>
+                    </div>
+                    <div class="leaderboard-item">
+                        <span class="rank">3rd</span>
+                        <span class="score">+500p</span>
+                    </div>
+                    <div class="leaderboard-item">
+                        <span class="rank">4th</span>
+                        <span class="score">+250p</span>
+                    </div>
+                    <div class="leaderboard-item">
+                        <span class="rank">5th</span>
+                        <span class="score">+125p</span>
+                    </div>
+                    <div class="leaderboard-item">
+                        <span class="rank">6th</span>
+                        <span class="score">+60p</span>
+                    </div>
+                    <div class="leaderboard-item">
+                        <span class="rank">7th</span>
+                        <span class="score">+30p</span>
+                    </div>
+                    <div class="leaderboard-item">
+                        <span class="rank">8th</span>
+                        <span class="score">+15p</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Freeze overlay -->
+        <div class="freeze-overlay">
+            <div class="freeze-message">
+                <h2>"Waiting Others to Submit..."</h2>
+                <div class="freeze-actions">
+                    <button class="btn btn-secondary" onclick="cancelWait()">Cancel</button>
+                    <button class="btn btn-primary" onclick="leaveRoom()">Leave</button>
+                </div>
+            </div>
         </div>
     </div>
     <script type="module" src="js/freeze.js"></script>
