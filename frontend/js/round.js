@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Get round ID from URL
     const urlParams = new URLSearchParams(window.location.search);
     roundId = urlParams.get('roundId');
+    roomCode = urlParams.get('roomCode');
     
     if (!roundId) {
         alert('No round ID provided. Redirecting to lobby.');
@@ -46,7 +47,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Check if player already submitted
         await checkSubmissionStatus();
     }
+    
+    // Set up WebSocket event handlers
+    setupSocketHandlers();
 });
+
+function setupSocketHandlers() {
+    if (window.socketClient) {
+        window.socketClient.on('round-ended', (data) => {
+            console.log('Round ended:', data);
+            // Redirect to results page
+            window.location.href = `results.html?roundId=${data.roundId}&roomCode=${roomCode}`;
+        });
+        
+        window.socketClient.on('prompt-submitted', (data) => {
+            console.log('Prompt submitted by:', data.playerName);
+            // Update UI to show submission status
+            updateSubmissionStatus(data.playerName);
+        });
+        
+        window.socketClient.on('error', (error) => {
+            showError(error.message || 'Connection error');
+        });
+    }
+}
 
 async function loadRoundData() {
     try {
@@ -164,22 +188,31 @@ async function submitPromptInternal(promptText) {
             submitBtn.textContent = 'Submitting...';
         }
         
-        const response = await postJson(`/api/rounds/${roundId}/submit`, {
-            playerName: currentPlayer.name,
-            promptText: promptText
-        });
-        
-        if (response.success) {
+        // Use WebSocket to submit prompt
+        if (window.socketClient && window.socketClient.connected) {
+            window.socketClient.submitPrompt(roundId, promptText);
             submitted = true;
             document.getElementById('prompt-input').disabled = true;
             showFreezeScreen();
         } else {
-            showError('Failed to submit prompt: ' + (response.error || 'Unknown error'));
+            // Fallback to REST API
+            const response = await postJson(`/api/rounds/${roundId}/submit`, {
+                playerName: currentPlayer.name,
+                promptText: promptText
+            });
             
-            // Re-enable submit button
-            if (submitBtn) {
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Submit Prompt';
+            if (response.success) {
+                submitted = true;
+                document.getElementById('prompt-input').disabled = true;
+                showFreezeScreen();
+            } else {
+                showError('Failed to submit prompt: ' + (response.error || 'Unknown error'));
+                
+                // Re-enable submit button
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Submit Prompt';
+                }
             }
         }
     } catch (error) {

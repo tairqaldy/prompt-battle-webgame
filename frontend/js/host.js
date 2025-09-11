@@ -36,9 +36,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Load room data
     await loadRoomData();
     
-    // Start polling for updates
+    // Set up WebSocket event handlers
+    setupSocketHandlers();
+    
+    // Start polling for updates (fallback)
     startPolling();
 });
+
+function setupSocketHandlers() {
+    if (window.socketClient) {
+        window.socketClient.on('player-joined', (data) => {
+            console.log('Player joined:', data);
+            players = data.players;
+            updatePlayersList();
+        });
+        
+        window.socketClient.on('player-left', (data) => {
+            console.log('Player left:', data);
+            players = data.players;
+            updatePlayersList();
+        });
+        
+        window.socketClient.on('round-started', (data) => {
+            console.log('Round started:', data);
+            // Store game info
+            localStorage.setItem('currentGame', JSON.stringify(data));
+            
+            // Navigate to round page
+            window.location.href = `round.html?roundId=${data.roundId}&roomCode=${roomCode}`;
+        });
+        
+        window.socketClient.on('error', (error) => {
+            showError(error.message || 'Connection error');
+        });
+    }
+}
 
 async function loadRoomData() {
     try {
@@ -147,16 +179,22 @@ window.startGame = async function() {
     try {
         showLoading('Starting game...');
         
-        const response = await postJson(`/api/rooms/${roomCode}/start`, {});
-        
-        if (response.success) {
-            // Store game info
-            localStorage.setItem('currentGame', JSON.stringify(response.game));
-            
-            // Navigate to round page
-            window.location.href = `round.html?roundId=${response.game.roundId}`;
+        // Use WebSocket to start game
+        if (window.socketClient && window.socketClient.connected) {
+            window.socketClient.startGame();
         } else {
-            showError('Failed to start game: ' + (response.error || 'Unknown error'));
+            // Fallback to REST API
+            const response = await postJson(`/api/rooms/${roomCode}/start`, {});
+            
+            if (response.success) {
+                // Store game info
+                localStorage.setItem('currentGame', JSON.stringify(response.game));
+                
+                // Navigate to round page
+                window.location.href = `round.html?roundId=${response.game.roundId}&roomCode=${roomCode}`;
+            } else {
+                showError('Failed to start game: ' + (response.error || 'Unknown error'));
+            }
         }
     } catch (error) {
         console.error('Error starting game:', error);

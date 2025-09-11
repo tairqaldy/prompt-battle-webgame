@@ -21,11 +21,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (savedPlayer) {
             currentPlayer = JSON.parse(savedPlayer);
         }
+        
+        // Set up WebSocket event handlers
+        setupSocketHandlers();
+        
     } catch (error) {
         console.error('Failed to connect to API:', error);
         showError('Unable to connect to server. Please check your connection.');
     }
 });
+
+function setupSocketHandlers() {
+    if (window.socketClient) {
+        window.socketClient.on('error', (error) => {
+            showError(error.message || 'Connection error');
+        });
+    }
+}
 
 // Global functions for inline onclick handlers
 window.showJoinParty = function() {
@@ -59,19 +71,34 @@ window.joinParty = async function() {
     try {
         showLoading('Joining party...');
         
-        const response = await postJson(`/api/rooms/${partyCode}/join`, {
-            playerName: playerName.trim()
-        });
-        
-        if (response.success) {
+        // Use WebSocket to join room
+        if (window.socketClient && window.socketClient.connected) {
+            const response = await window.socketClient.joinRoom(partyCode, playerName.trim());
+            
             // Store player info
             currentPlayer = response.player;
             localStorage.setItem('currentPlayer', JSON.stringify(currentPlayer));
+            localStorage.setItem('isHost', 'false');
             
             // Navigate to guest page
             window.location.href = `guest.html?code=${partyCode}`;
         } else {
-            showError('Failed to join party: ' + (response.error || 'Unknown error'));
+            // Fallback to REST API
+            const response = await postJson(`/api/rooms/${partyCode}/join`, {
+                playerName: playerName.trim()
+            });
+            
+            if (response.success) {
+                // Store player info
+                currentPlayer = response.player;
+                localStorage.setItem('currentPlayer', JSON.stringify(currentPlayer));
+                localStorage.setItem('isHost', 'false');
+                
+                // Navigate to guest page
+                window.location.href = `guest.html?code=${partyCode}`;
+            } else {
+                showError('Failed to join party: ' + (response.error || 'Unknown error'));
+            }
         }
     } catch (error) {
         console.error('Error joining party:', error);
@@ -108,20 +135,34 @@ window.createParty = async function() {
         });
         
         if (response.success) {
-            // Join the created room as host
-            const joinResponse = await postJson(`/api/rooms/${response.room.code}/join`, {
-                playerName: playerName.trim()
-            });
-            
-            if (joinResponse.success) {
+            // Join the created room as host using WebSocket
+            if (window.socketClient && window.socketClient.connected) {
+                const joinResponse = await window.socketClient.joinRoom(response.room.code, playerName.trim());
+                
                 // Store player info
                 currentPlayer = joinResponse.player;
                 localStorage.setItem('currentPlayer', JSON.stringify(currentPlayer));
+                localStorage.setItem('isHost', 'true');
                 
                 // Navigate to host page
                 window.location.href = `host.html?code=${response.room.code}`;
             } else {
-                showError('Failed to join created party: ' + (joinResponse.error || 'Unknown error'));
+                // Fallback to REST API
+                const joinResponse = await postJson(`/api/rooms/${response.room.code}/join`, {
+                    playerName: playerName.trim()
+                });
+                
+                if (joinResponse.success) {
+                    // Store player info
+                    currentPlayer = joinResponse.player;
+                    localStorage.setItem('currentPlayer', JSON.stringify(currentPlayer));
+                    localStorage.setItem('isHost', 'true');
+                    
+                    // Navigate to host page
+                    window.location.href = `host.html?code=${response.room.code}`;
+                } else {
+                    showError('Failed to join created party: ' + (joinResponse.error || 'Unknown error'));
+                }
             }
         } else {
             showError('Failed to create party: ' + (response.error || 'Unknown error'));

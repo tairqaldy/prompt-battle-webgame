@@ -35,9 +35,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Load room data
     await loadRoomData();
     
-    // Start polling for updates
+    // Set up WebSocket event handlers
+    setupSocketHandlers();
+    
+    // Start polling for updates (fallback)
     startPolling();
 });
+
+function setupSocketHandlers() {
+    if (window.socketClient) {
+        window.socketClient.on('player-joined', (data) => {
+            console.log('Player joined:', data);
+            players = data.players;
+            updatePlayersList();
+        });
+        
+        window.socketClient.on('player-left', (data) => {
+            console.log('Player left:', data);
+            players = data.players;
+            updatePlayersList();
+        });
+        
+        window.socketClient.on('round-started', (data) => {
+            console.log('Round started:', data);
+            // Store game info
+            localStorage.setItem('currentGame', JSON.stringify(data));
+            
+            // Navigate to round page
+            window.location.href = `round.html?roundId=${data.roundId}&roomCode=${roomCode}`;
+        });
+        
+        window.socketClient.on('error', (error) => {
+            showError(error.message || 'Connection error');
+        });
+    }
+}
 
 async function loadRoomData() {
     try {

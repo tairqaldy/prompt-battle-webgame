@@ -8,74 +8,66 @@
 </head>
 <body>
     <div class="container">
-        <h1>Final Results Screen (End of Game)</h1>
+        <h1>Game Complete!</h1>
 
         <div class="final-layout">
             <div class="game-summary">
                 <div class="winner-section">
+                    <h2>🏆 Winner</h2>
                     <div class="winner-info">
-                        <label>Winner:</label>
-                        <span id="winner-name">NAME</span>
-                        <span id="winner-score">score</span>
+                        <label>Player:</label>
+                        <div id="winner-name">Loading...</div>
+                        <label>Total Score:</label>
+                        <div id="winner-score">0</div>
                     </div>
                     
                     <div class="best-prompt">
-                        <label>Best prompt of the game:</label>
-                        <div id="best-prompt-text">PROMPT</div>
-                        <span id="best-prompt-accuracy">(accuracy: 99%)</span>
+                        <label>Best Prompt:</label>
+                        <div id="best-prompt-text">Loading...</div>
+                        <div id="best-prompt-score">Score: 0</div>
+                    </div>
+                </div>
+                
+                <div class="game-stats">
+                    <h3>Game Statistics</h3>
+                    <div class="stat-item">
+                        <span>Total Rounds:</span>
+                        <span id="total-rounds">3</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>Players:</span>
+                        <span id="total-players">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>Average Score:</span>
+                        <span id="average-score">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>Highest Score:</span>
+                        <span id="highest-score">0</span>
                     </div>
                 </div>
             </div>
 
             <div class="final-leaderboard">
-                <h3>Final Leaderboard</h3>
-                <div class="leaderboard">
-                    <div class="leaderboard-header">
-                        <span class="header-name">name</span>
-                        <span class="header-score">score</span>
-                    </div>
+                <h3>Final Rankings</h3>
+                <div class="leaderboard" id="final-leaderboard">
                     <div class="leaderboard-item">
-                        <span class="player-name">1st</span>
-                        <span class="score">2500</span>
+                        <span class="rank">1st</span>
+                        <span class="player-name">Loading...</span>
+                        <span class="score">-</span>
                     </div>
-                    <div class="leaderboard-item">
-                        <span class="player-name">2nd</span>
-                        <span class="score">2200</span>
-                    </div>
-                    <div class="leaderboard-item">
-                        <span class="player-name">3rd</span>
-                        <span class="score">1950</span>
-                    </div>
-                    <div class="leaderboard-item">
-                        <span class="player-name">4th</span>
-                        <span class="score">1700</span>
-                    </div>
-                    <div class="leaderboard-item">
-                        <span class="player-name">5th</span>
-                        <span class="score">1500</span>
-                    </div>
-                    <div class="leaderboard-item">
-                        <span class="player-name">6th</span>
-                        <span class="score">1300</span>
-                    </div>
-                    <div class="leaderboard-item">
-                        <span class="player-name">7th</span>
-                        <span class="score">1100</span>
-                    </div>
-                    <div class="leaderboard-item">
-                        <span class="player-name">8th</span>
-                        <span class="score">900</span>
-                    </div>
+                </div>
+                
+                <div class="final-actions">
+                    <button class="btn btn-primary" onclick="playAgain()">Play Again</button>
+                    <button class="btn btn-secondary" onclick="returnToLobby()">Return to Lobby</button>
                 </div>
             </div>
         </div>
-
-        <div class="final-actions">
-            <button class="btn btn-secondary" onclick="exitGame()">Exit Game.</button>
-            <button class="btn btn-primary" onclick="playAgain()">Play Again</button>
-            <button class="btn btn-secondary" onclick="returnToLobby()">Return to lobby</button>
-        </div>
     </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="module" src="js/socket-client.js"></script>
     <script type="module" src="js/final.js"></script>
 </body>
 </html>

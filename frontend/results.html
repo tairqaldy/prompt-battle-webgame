@@ -3,97 +3,99 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prompt Battle - Results</title>
+    <title>Prompt Battle - Round Results</title>
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
     <div class="container">
-        <h1>Results Screen</h1>
+        <h1>Round Results</h1>
+
+        <div class="game-header">
+            <div class="timer-section">
+                <div class="timer">
+                    <span id="round-info">Round <span id="round-number">1</span>/3</span>
+                </div>
+                <div class="timer-label">Complete</div>
+            </div>
+            
+            <div class="room-info">
+                <span class="room-code">Room: <span id="room-code">UNKNOWN</span></span>
+                <button class="action-btn" onclick="leaveRoom()">Leave</button>
+                <span class="round-info">Round <span id="round-number-2">1</span>/3</span>
+            </div>
+        </div>
 
         <div class="results-layout">
             <div class="player-performance">
+                <h3>Your Performance</h3>
                 <div class="performance-stats">
                     <div class="stat-item">
-                        <label>Accuracy:</label>
-                        <span id="player-accuracy">[blank space]</span>
+                        <span>Your Score:</span>
+                        <span id="player-score">0</span>
                     </div>
                     <div class="stat-item">
-                        <label>Score received:</label>
-                        <span id="player-score">[blank space]</span>
+                        <span>Rank:</span>
+                        <span id="player-rank">-</span>
                     </div>
-                </div>
-                
-                <div class="other-prompts">
-                    <h4>Prompt of Others.</h4>
-                    <div class="prompt-list">
-                        <div class="prompt-item">
-                            "PROMPT - NAME (60%)"
-                        </div>
-                        <div class="prompt-item">
-                            "Another prompt - PLAYER2 (45%)"
-                        </div>
-                        <div class="prompt-item">
-                            "Third prompt - PLAYER3 (30%)"
-                        </div>
+                    <div class="stat-item">
+                        <span>Words Matched:</span>
+                        <span id="words-matched">0</span>
                     </div>
-                </div>
-            </div>
-
-            <div class="image-section">
-                <div class="image-container">
-                    <div class="image-placeholder">
-                        <span class="image-label">IMAGE</span>
-                        <div class="mountain-sketch">
-                            <div class="mountain-range">
-                                <div class="peak"></div>
-                                <div class="peak"></div>
-                                <div class="peak"></div>
-                            </div>
-                            <div class="stick-figure">🧗</div>
-                            <div class="vehicle">🚙</div>
-                        </div>
+                    <div class="stat-item">
+                        <span>Words Missed:</span>
+                        <span id="words-missed">0</span>
                     </div>
                 </div>
                 
                 <div class="prompt-details">
                     <div class="prompt-box">
-                        <label>Player's Prompt</label>
-                        <div id="player-prompt">"A mountain climber hiking with a jeep nearby"</div>
+                        <label>Your Prompt:</label>
+                        <div id="player-prompt">Loading...</div>
                     </div>
-                    
                     <div class="prompt-box">
-                        <label>Ground truth Prompt (revealed)</label>
-                        <div id="ground-truth">"A person climbing mountains with a vehicle on a winding path"</div>
+                        <label>Original Prompt:</label>
+                        <div id="original-prompt">Loading...</div>
+                    </div>
+                    <div class="prompt-box">
+                        <label>Explanation:</label>
+                        <div id="score-explanation">Loading...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="prompt-list">
+                <h3>All Submissions</h3>
+                <div id="all-submissions">
+                    <div class="submission-item">
+                        <span class="player-name">Loading...</span>
+                        <span class="score">-</span>
                     </div>
                 </div>
             </div>
 
             <div class="round-leaderboard">
-                <button class="next-round-btn" onclick="nextRound()">Next Round</button>
-                <p class="note">button for Host</p>
+                <h3>Round Leaderboard</h3>
+                <div class="leaderboard" id="round-leaderboard">
+                    <div class="leaderboard-item">
+                        <span class="rank">1st</span>
+                        <span class="player-name">Loading...</span>
+                        <span class="score">-</span>
+                    </div>
+                </div>
                 
-                <h4>Leader board (updated round-based)</h4>
-                <div class="leaderboard">
-                    <div class="leaderboard-header">
-                        <span class="header-name">NAME</span>
-                        <span class="header-score">SCORE</span>
-                    </div>
-                    <div class="leaderboard-item">
-                        <span class="player-name">1st NAME</span>
-                        <span class="score">1250</span>
-                    </div>
-                    <div class="leaderboard-item">
-                        <span class="player-name">2nd</span>
-                        <span class="score">1000</span>
-                    </div>
-                    <div class="leaderboard-item">
-                        <span class="player-name">3rd</span>
-                        <span class="score">750</span>
-                    </div>
+                <div class="next-round-section" id="next-round-section" style="display: none;">
+                    <button class="next-round-btn" onclick="nextRound()">Next Round</button>
+                    <p class="note">Only the host can start the next round</p>
+                </div>
+                
+                <div class="game-complete-section" id="game-complete-section" style="display: none;">
+                    <button class="btn btn-primary" onclick="viewFinalResults()">View Final Results</button>
                 </div>
             </div>
         </div>
     </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="module" src="js/socket-client.js"></script>
     <script type="module" src="js/results.js"></script>
 </body>
 </html>
