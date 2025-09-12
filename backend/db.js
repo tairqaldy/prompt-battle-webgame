@@ -233,12 +233,31 @@ class DatabaseManager {
   // Submission Helpers
   submitPrompt(roundId, playerName, promptText) {
     return new Promise((resolve, reject) => {
+      const self = this; // Store reference to this
+      
+      // First try to update existing submission
       this.db.run(
-        `INSERT INTO submissions (roundId, playerName, promptText, createdAt) VALUES (?, ?, ?, ?)`,
-        [roundId, playerName, promptText, Date.now()],
+        `UPDATE submissions SET promptText = ?, createdAt = ? WHERE roundId = ? AND playerName = ?`,
+        [promptText, Date.now(), roundId, playerName],
         function(err) {
-          if (err) reject(err);
-          else resolve({ lastInsertRowid: this.lastID, changes: this.changes });
+          if (err) {
+            reject(err);
+            return;
+          }
+          
+          // If no rows were updated, insert new submission
+          if (this.changes === 0) {
+            self.db.run(
+              `INSERT INTO submissions (roundId, playerName, promptText, createdAt) VALUES (?, ?, ?, ?)`,
+              [roundId, playerName, promptText, Date.now()],
+              function(err) {
+                if (err) reject(err);
+                else resolve({ lastInsertRowid: this.lastID, changes: this.changes });
+              }
+            );
+          } else {
+            resolve({ lastInsertRowid: this.lastID, changes: this.changes });
+          }
         }
       );
     });
@@ -252,6 +271,19 @@ class DatabaseManager {
         (err, rows) => {
           if (err) reject(err);
           else resolve(rows);
+        }
+      );
+    });
+  }
+
+  removeSubmission(roundId, playerName) {
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        'DELETE FROM submissions WHERE roundId = ? AND playerName = ?',
+        [roundId, playerName],
+        function(err) {
+          if (err) reject(err);
+          else resolve({ changes: this.changes });
         }
       );
     });

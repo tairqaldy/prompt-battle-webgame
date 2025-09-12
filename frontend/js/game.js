@@ -99,12 +99,18 @@ class PromptBattleGame {
 
                 this.socket.on('game-completed', (data) => {
                     console.log('Game completed:', data);
+                    console.log('Final rankings:', data.finalRankings);
                     this.showFinalResults(data);
                 });
 
                 this.socket.on('prompt-submitted', (data) => {
                     console.log('Prompt submitted by:', data.playerName);
                     this.updateSubmissionStatus(data.playerName);
+                });
+
+                this.socket.on('prompt-unsubmitted', (data) => {
+                    console.log('Prompt unsubmitted by:', data.playerName);
+                    this.updateSubmissionStatus(data.playerName, false);
                 });
 
                 // Timeout after 5 seconds
@@ -341,6 +347,20 @@ class PromptBattleGame {
         }
     }
 
+    leaveGame() {
+        if (confirm('Are you sure you want to leave the game? Your progress will be lost.')) {
+            this.socket.emit('leave-room');
+            this.resetGameState();
+            this.showScreen('lobby');
+            this.showSuccess('Left the game');
+        }
+    }
+
+    reportBug() {
+        // For now, just show a placeholder message
+        alert('Bug Report\n\nThank you for reporting a bug! This feature is coming soon.\n\nFor now, please describe the issue in detail and we\'ll work on fixing it.');
+    }
+
     updatePlayersList() {
         const playersList = document.getElementById('players-list');
         const playerCount = document.getElementById('player-count-room');
@@ -409,6 +429,8 @@ class PromptBattleGame {
         console.log('Starting multiplayer round with image:', roundData.imagePath);
         
         this.gameState.roundData = roundData;
+        this.gameState.submitted = false;
+        this.gameState.currentPrompt = '';
         this.showScreen('game');
         
         // Update UI
@@ -495,10 +517,17 @@ class PromptBattleGame {
         // Start timer
         this.startTimer(roundData.timeLimit);
         
-        // Reset prompt input
+        // Reset prompt input and UI state
+        this.resetPromptUI();
+    }
+
+    resetPromptUI() {
         document.getElementById('prompt-input').value = '';
         document.getElementById('prompt-input').disabled = false;
         document.getElementById('submit-btn').disabled = false;
+        document.getElementById('submit-btn').textContent = 'Submit Prompt';
+        document.getElementById('unsumbit-btn').style.display = 'none';
+        this.gameState.submitted = false;
         this.updateCharCount();
     }
 
@@ -572,19 +601,47 @@ class PromptBattleGame {
             return;
         }
 
+        // Store current prompt
+        this.gameState.currentPrompt = promptText;
+        this.gameState.submitted = true;
+
         try {
             this.socket.emit('submit-prompt', {
                 roundId: this.gameState.currentRound.roundId,
                 promptText: promptText
             });
             
+            // Update UI to show submitted state
             document.getElementById('prompt-input').disabled = true;
             document.getElementById('submit-btn').disabled = true;
             document.getElementById('submit-btn').textContent = 'Submitted!';
+            document.getElementById('unsumbit-btn').style.display = 'inline-block';
         } catch (error) {
             console.error('Error submitting prompt:', error);
             this.showError('Failed to submit prompt');
         }
+    }
+
+    unsumbitPrompt() {
+        // Reset UI state
+        document.getElementById('prompt-input').disabled = false;
+        document.getElementById('submit-btn').disabled = false;
+        document.getElementById('submit-btn').textContent = 'Submit Prompt';
+        document.getElementById('unsumbit-btn').style.display = 'none';
+        
+        this.gameState.submitted = false;
+        
+        // Focus on input for editing
+        document.getElementById('prompt-input').focus();
+        
+        // Emit unsubmit to server
+        if (this.gameState.roundData && this.gameState.roundData.id) {
+            this.socket.emit('unsubmit-prompt', {
+                roundId: this.gameState.roundData.id
+            });
+        }
+        
+        console.log('Prompt unsubmitted, ready for editing');
     }
 
     showResults(data) {
@@ -604,13 +661,22 @@ class PromptBattleGame {
             document.getElementById('player-rank').textContent = `${playerRank}${this.getOrdinalSuffix(playerRank)}`;
         }
         
+        // Update leaderboard with current scores
+        if (data.currentScores) {
+            this.updateGameLeaderboard(data.currentScores);
+        }
+        
         // Update round leaderboard
         this.updateRoundLeaderboard(data.results);
         
-        // Show appropriate buttons based on game state
+        // Show appropriate buttons based on game state and host status
         const isLastRound = data.roundNumber >= data.totalRounds;
         
         if (this.gameState.isHost) {
+            // Host controls
+            document.getElementById('host-results-actions').style.display = 'block';
+            document.getElementById('player-results-actions').style.display = 'none';
+            
             if (isLastRound) {
                 document.getElementById('game-complete-section').style.display = 'block';
                 document.getElementById('next-round-section').style.display = 'none';
@@ -619,8 +685,9 @@ class PromptBattleGame {
                 document.getElementById('game-complete-section').style.display = 'none';
             }
         } else {
-            document.getElementById('next-round-section').style.display = 'none';
-            document.getElementById('game-complete-section').style.display = 'block';
+            // Player controls - only show waiting message
+            document.getElementById('host-results-actions').style.display = 'none';
+            document.getElementById('player-results-actions').style.display = 'block';
         }
     }
 
@@ -653,13 +720,24 @@ class PromptBattleGame {
         sortedScores.forEach((player, index) => {
             const leaderboardItem = document.createElement('div');
             leaderboardItem.className = 'leaderboard-item';
+            
+            // Calculate points based on placement (1st = 10pts, 2nd = 8pts, etc.)
+            const points = this.calculatePlacementPoints(index + 1, sortedScores.length);
+            
             leaderboardItem.innerHTML = `
                 <span class="rank">${index + 1}${this.getOrdinalSuffix(index + 1)}</span>
                 <span class="player-name">${player.name}</span>
-                <span class="score">${player.score}</span>
+                <span class="score">${player.score}pts</span>
+                <span class="points">+${points}</span>
             `;
             leaderboard.appendChild(leaderboardItem);
         });
+    }
+
+    calculatePlacementPoints(rank, totalPlayers) {
+        // Points system: 1st = 10, 2nd = 8, 3rd = 6, 4th = 4, 5th+ = 2
+        const points = [10, 8, 6, 4, 2];
+        return points[Math.min(rank - 1, points.length - 1)];
     }
 
     showFinalResults(data) {
@@ -699,10 +777,15 @@ class PromptBattleGame {
             return;
         }
         
-        this.socket.emit('start-game', { roomCode: this.gameState.roomCode });
+        this.socket.emit('next-round', { roomCode: this.gameState.roomCode });
     }
 
     viewFinalResults() {
+        if (!this.gameState.isHost) {
+            this.showError('Only the host can view final results');
+            return;
+        }
+        
         this.showScreen('final');
         this.updateFinalResults();
     }
@@ -1140,9 +1223,13 @@ class PromptBattleGame {
         }
     }
 
-    updateSubmissionStatus(playerName) {
+    updateSubmissionStatus(playerName, submitted = true) {
         // Update UI to show submission status
-        console.log('Player submitted:', playerName);
+        if (submitted) {
+            console.log('Player submitted:', playerName);
+        } else {
+            console.log('Player unsubmitted:', playerName);
+        }
     }
 }
 
@@ -1161,6 +1248,7 @@ window.startGame = () => game.startGame();
 window.kickPlayer = (playerId) => game.kickPlayer(playerId);
 window.leaveRoom = () => game.leaveRoom();
 window.submitPrompt = () => game.submitPrompt();
+window.unsumbitPrompt = () => game.unsumbitPrompt();
 window.updateCharCount = () => game.updateCharCount();
 window.nextRound = () => game.nextRound();
 window.viewFinalResults = () => game.viewFinalResults();
@@ -1168,6 +1256,8 @@ window.playAgain = () => game.playAgain();
 window.returnToLobby = () => game.returnToLobby();
 window.updateRoomSettings = () => game.updateRoomSettings();
 window.copyRoomCode = () => game.copyRoomCode();
+window.leaveGame = () => game.leaveGame();
+window.reportBug = () => game.reportBug();
 window.showHowToPlay = () => {
     alert('How to Play:\n\n1. Try the Daily Challenge for solo practice\n2. Create or join a room for multiplayer\n3. Write prompts for AI-generated images\n4. Compete with other players\n5. Get scored on prompt accuracy');
 };

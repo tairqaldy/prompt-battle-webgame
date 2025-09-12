@@ -79,9 +79,11 @@
                             <div class="setting-group">
                                 <label>Rounds:</label>
                                 <select id="rounds-setting-room" onchange="updateRoomSettings()">
+                                    <option value="1">1 Round</option>
+                                    <option value="2">2 Rounds</option>
                                     <option value="3">3 Rounds</option>
+                                    <option value="4">4 Rounds</option>
                                     <option value="5">5 Rounds</option>
-                                    <option value="10">10 Rounds</option>
                                 </select>
                             </div>
                             <div class="setting-group">
@@ -153,15 +155,25 @@
                         maxlength="100"
                         oninput="updateCharCount()"
                     ></textarea>
-                    <button id="submit-btn" class="btn btn-primary" onclick="submitPrompt()">
-                        Submit Prompt
-                    </button>
+                    <div class="prompt-actions">
+                        <button id="submit-btn" class="btn btn-primary" onclick="submitPrompt()">
+                            Submit Prompt
+                        </button>
+                        <button id="unsumbit-btn" class="btn btn-secondary" onclick="unsumbitPrompt()" style="display: none;">
+                            Unsubmit & Edit
+                        </button>
+                    </div>
                 </div>
 
                 <div class="leaderboard-section">
                     <h3>Live Leaderboard</h3>
                     <div id="leaderboard" class="leaderboard"></div>
                 </div>
+            </div>
+            
+            <div class="game-actions">
+                <button class="btn btn-secondary" onclick="leaveGame()">Leave Game</button>
+                <button class="btn btn-small" onclick="reportBug()">Report Bug</button>
             </div>
         </div>
 
@@ -198,15 +210,27 @@
                 <div class="round-leaderboard">
                     <h3>Round Leaderboard</h3>
                     <div id="round-leaderboard" class="leaderboard"></div>
-                    
-                    <div id="next-round-section" style="display: none;">
-                        <button class="btn btn-primary" onclick="nextRound()">Next Round</button>
-                    </div>
-                    
-                    <div id="game-complete-section" style="display: none;">
-                        <button class="btn btn-primary" onclick="viewFinalResults()">View Final Results</button>
-                    </div>
                 </div>
+            </div>
+            
+            <!-- Host Controls -->
+            <div id="host-results-actions" class="results-actions" style="display: none;">
+                <div id="next-round-section">
+                    <button class="btn btn-primary" onclick="nextRound()">Next Round</button>
+                </div>
+                <div id="game-complete-section" style="display: none;">
+                    <button class="btn btn-primary" onclick="viewFinalResults()">View Final Results</button>
+                </div>
+                <button class="btn btn-secondary" onclick="returnToLobby()">Return to Lobby</button>
+            </div>
+            
+            <!-- Player Controls -->
+            <div id="player-results-actions" class="results-actions" style="display: none;">
+                <div class="waiting-message">
+                    <h3>Waiting for Host</h3>
+                    <p>The host will start the next round or end the game.</p>
+                </div>
+                <button class="btn btn-secondary" onclick="returnToLobby()">Leave Game</button>
             </div>
         </div>
 

@@ -245,14 +245,66 @@ h3 {
     background: rgba(255,255,255,0.3);
 }
 
-.waiting-message {
+.prompt-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.game-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 2rem;
+    padding: 1rem;
+    background: rgba(255,255,255,0.1);
+    border-radius: 8px;
+}
+
+.game-actions .btn {
+    margin: 0;
+}
+
+.submitted-state {
+    background: #e8f5e8;
+    border: 2px solid #4caf50;
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 1rem 0;
     text-align: center;
+}
+
+.submitted-state h4 {
+    color: #2e7d32;
+    margin: 0 0 0.5rem 0;
+}
+
+.submitted-state p {
+    color: #388e3c;
+    margin: 0;
+}
+
+.results-actions {
+    margin-top: 2rem;
+    text-align: center;
+}
+
+.waiting-message {
+    background: rgba(255,255,255,0.1);
+    border-radius: 8px;
     padding: 2rem;
+    margin: 1rem 0;
+    text-align: center;
 }
 
 .waiting-message h3 {
-    color: #667eea;
-    margin-bottom: 1rem;
+    color: #fff;
+    margin: 0 0 0.5rem 0;
+}
+
+.waiting-message p {
+    color: rgba(255,255,255,0.8);
+    margin: 0;
 }
 
 /* Game Screen */

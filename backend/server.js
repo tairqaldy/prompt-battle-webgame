@@ -248,6 +248,31 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('next-round', async (data) => {
+    try {
+      const { roomCode } = data;
+      
+      if (!gameRooms.has(roomCode)) {
+        socket.emit('error', { message: 'Room not found' });
+        return;
+      }
+
+      const roomState = gameRooms.get(roomCode);
+      
+      if (roomState.gameState !== 'waiting') {
+        socket.emit('error', { message: 'Game not in waiting state' });
+        return;
+      }
+
+      // Start the next round
+      await startRound(roomCode);
+
+    } catch (error) {
+      console.error('Error starting next round:', error);
+      socket.emit('error', { message: 'Failed to start next round' });
+    }
+  });
+
   socket.on('submit-prompt', async (data) => {
     try {
       const { roundId, promptText } = data;
@@ -275,16 +300,19 @@ io.on('connection', (socket) => {
           roundId: roundId
         });
         
-        // Check if all players have submitted
+        // Check if all players have submitted (count unique players, not total submissions)
         const roomState = gameRooms.get(roomCode);
         if (roomState && roomState.currentRound && roomState.currentRound.id === roundId) {
           const allSubmissions = await dbManager.getRoundSubmissions(roundId);
+          const uniquePlayers = new Set(allSubmissions.map(sub => sub.playerName));
           const playerCount = roomState.players.length;
           
-          console.log(`[${new Date().toISOString()}] Round ${roundId}: ${allSubmissions.length}/${playerCount} players submitted`);
+          console.log(`[${new Date().toISOString()}] Round ${roundId}: ${uniquePlayers.size}/${playerCount} unique players submitted`);
+          console.log(`[${new Date().toISOString()}] Submissions:`, allSubmissions.map(s => s.playerName));
+          console.log(`[${new Date().toISOString()}] Players in room:`, roomState.players.map(p => p.name));
           
           // If all players have submitted, end the round early
-          if (allSubmissions.length >= playerCount) {
+          if (uniquePlayers.size >= playerCount) {
             console.log(`[${new Date().toISOString()}] All players submitted, ending round early`);
             await endRound(roomCode, roundId);
             return;
@@ -297,6 +325,42 @@ io.on('connection', (socket) => {
     } catch (error) {
       console.error('Error submitting prompt:', error);
       socket.emit('error', { message: 'Failed to submit prompt' });
+    }
+  });
+
+  socket.on('unsubmit-prompt', async (data) => {
+    try {
+      const { roundId } = data;
+      
+      if (!socket.playerId) {
+        socket.emit('error', { message: 'Invalid player' });
+        return;
+      }
+
+      // Get player info
+      const player = await getPlayerById(socket.playerId);
+      if (!player) {
+        socket.emit('error', { message: 'Player not found' });
+        return;
+      }
+
+      // Remove submission from database
+      await dbManager.removeSubmission(roundId, player.name);
+
+      // Notify all players in room
+      const roomCode = socket.roomCode;
+      if (roomCode) {
+        io.to(roomCode).emit('prompt-unsubmitted', {
+          playerName: player.name,
+          roundId: roundId
+        });
+      }
+
+      console.log(`[${new Date().toISOString()}] Player ${player.name} unsubmitted prompt for round ${roundId}`);
+
+    } catch (error) {
+      console.error('Error unsubmitting prompt:', error);
+      socket.emit('error', { message: 'Failed to unsubmit prompt' });
     }
   });
 
@@ -385,9 +449,12 @@ async function startRound(roomCode) {
     });
 
     // Set timer to end round
-    setTimeout(async () => {
+    const timerId = setTimeout(async () => {
       await endRound(roomCode, roundId);
     }, timeLimit * 1000);
+    
+    // Store timer ID in room state so we can clear it if round ends early
+    roomState.currentRound.timerId = timerId;
 
     console.log(`[${new Date().toISOString()}] Round ${roomState.roundCount}/${roomState.totalRounds} started in room ${roomCode}`);
 
@@ -401,6 +468,23 @@ async function endRound(roomCode, roundId) {
   try {
     const roomState = gameRooms.get(roomCode);
     if (!roomState) return;
+    
+    // Check if round has already ended
+    if (roomState.currentRound && roomState.currentRound.ended) {
+      console.log(`[${new Date().toISOString()}] Round ${roundId} already ended, skipping`);
+      return;
+    }
+    
+    // Mark round as ended
+    if (roomState.currentRound) {
+      roomState.currentRound.ended = true;
+      
+      // Clear the timer if it exists
+      if (roomState.currentRound.timerId) {
+        clearTimeout(roomState.currentRound.timerId);
+        console.log(`[${new Date().toISOString()}] Cleared timer for round ${roundId}`);
+      }
+    }
 
     // Close the round
     await dbManager.closeRound(roundId);
@@ -411,12 +495,18 @@ async function endRound(roomCode, roundId) {
 
     // Calculate scores for all submissions
     const results = [];
+    console.log(`[${new Date().toISOString()}] Processing ${submissions.length} submissions for round ${roundId}`);
+    
     for (const submission of submissions) {
+      console.log(`[${new Date().toISOString()}] Scoring submission from ${submission.playerName}: "${submission.promptText}"`);
       const scoringResult = scoring.scoreAttempt(round.sourcePrompt, submission.promptText);
+      console.log(`[${new Date().toISOString()}] Score: ${scoringResult.score}`);
       
       // Update cumulative scores
       if (roomState.scores[submission.playerName] !== undefined) {
         roomState.scores[submission.playerName] += scoringResult.score;
+      } else {
+        roomState.scores[submission.playerName] = scoringResult.score;
       }
       
       await dbManager.saveResult(
@@ -440,9 +530,14 @@ async function endRound(roomCode, roundId) {
 
     // Sort results by score
     results.sort((a, b) => b.score - a.score);
+    
+    console.log(`[${new Date().toISOString()}] Round results:`, results.map(r => `${r.playerName}: ${r.score}`));
+    console.log(`[${new Date().toISOString()}] Current scores:`, roomState.scores);
 
     // Check if game is complete
     const isGameComplete = roomState.roundCount >= roomState.totalRounds;
+    
+    console.log(`[${new Date().toISOString()}] Game completion check: roundCount=${roomState.roundCount}, totalRounds=${roomState.totalRounds}, isComplete=${isGameComplete}`);
     
     if (isGameComplete) {
       roomState.gameState = 'finished';
@@ -721,6 +816,20 @@ process.on('SIGTERM', () => {
   process.exit(0);
 });
 
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error(`[${new Date().toISOString()}] Uncaught Exception:`, error);
+  dbManager.close();
+  process.exit(1);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error(`[${new Date().toISOString()}] Unhandled Rejection at:`, promise, 'reason:', reason);
+  dbManager.close();
+  process.exit(1);
+});
+
 // Initialize database and start server
 async function startServer() {
   try {
@@ -735,6 +844,14 @@ async function startServer() {
       console.log(`[${new Date().toISOString()}] WebSocket server enabled for real-time multiplayer`);
       console.log(`[${new Date().toISOString()}] Frontend served from: ${frontendPath}`);
       console.log(`[${new Date().toISOString()}] Dataset loaded with ${dataset.length} entries`);
+    });
+    
+    server.on('error', (error) => {
+      console.error(`[${new Date().toISOString()}] Server error:`, error);
+      if (error.code === 'EADDRINUSE') {
+        console.error(`[${new Date().toISOString()}] Port ${PORT} is already in use`);
+        process.exit(1);
+      }
     });
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Failed to start server:`, error);
