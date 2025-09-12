@@ -1,9 +1,19 @@
 const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
 const path = require('path');
 const dbManager = require('./db');
 const scoring = require('./scoring');
 
 const app = express();
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 
 // Middleware
@@ -33,6 +43,10 @@ app.use((req, res, next) => {
 const frontendPath = path.join(__dirname, '../frontend');
 app.use(express.static(frontendPath));
 
+// Game state management
+const gameRooms = new Map(); // roomCode -> { players: [], gameState: 'waiting'|'playing'|'finished', currentRound: null, gameSettings: {}, roundCount: 0, totalRounds: 3, scores: {} }
+const playerSockets = new Map(); // playerId -> socket
+
 // Utility functions
 function generateRoomCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -59,201 +73,545 @@ function validatePromptText(text) {
   return text && typeof text === 'string' && text.trim().length >= 1 && text.trim().length <= 400;
 }
 
-// API Routes
+// WebSocket connection handling
+io.on('connection', (socket) => {
+  console.log(`[${new Date().toISOString()}] Player connected: ${socket.id}`);
+
+  socket.on('join-room', async (data) => {
+    try {
+      const { roomCode, playerName } = data;
+      
+      if (!validateRoomCode(roomCode) || !validatePlayerName(playerName)) {
+        socket.emit('error', { message: 'Invalid room code or player name' });
+        return;
+      }
+
+      // Check if room exists in database
+      const room = await dbManager.getRoom(roomCode);
+      if (!room) {
+        socket.emit('error', { message: 'Room not found' });
+        return;
+      }
+
+      // Get current players from database
+      const players = await dbManager.getRoomPlayers(roomCode);
+      
+      // Check if player name is already taken
+      const nameExists = players.some(p => p.name.toLowerCase() === playerName.toLowerCase());
+      if (nameExists) {
+        socket.emit('error', { message: 'Player name already taken' });
+        return;
+      }
+
+      // Check room capacity
+      if (players.length >= 8) {
+        socket.emit('error', { message: 'Room is full' });
+        return;
+      }
+
+      // Add player to database
+      const result = await dbManager.addPlayer(roomCode, playerName.trim());
+      const player = {
+        id: result.lastInsertRowid,
+        name: playerName.trim(),
+        code: roomCode,
+        socketId: socket.id
+      };
+
+      // Store player socket mapping
+      playerSockets.set(player.id, socket);
+      socket.playerId = player.id;
+      socket.roomCode = roomCode;
+
+      // Initialize room in memory if not exists
+      if (!gameRooms.has(roomCode)) {
+        gameRooms.set(roomCode, {
+          players: [],
+          gameState: 'waiting',
+          currentRound: null,
+          gameSettings: {
+            rounds: 3,
+            timeLimit: 60,
+            maxPlayers: 8,
+            characterLimit: 100
+          },
+          roundCount: 0,
+          totalRounds: 3,
+          scores: {},
+          gameStarted: false
+        });
+      }
+
+      const roomState = gameRooms.get(roomCode);
+      roomState.players.push(player);
+
+      // Join socket room
+      socket.join(roomCode);
+
+      // Notify all players in room
+      io.to(roomCode).emit('player-joined', {
+        player: player,
+        players: roomState.players,
+        gameState: roomState.gameState
+      });
+
+      // Send response to the joining player
+      socket.emit('join-room-success', {
+        player: player,
+        players: roomState.players,
+        gameState: roomState.gameState
+      });
+
+      console.log(`[${new Date().toISOString()}] Player ${playerName} joined room ${roomCode}`);
+
+    } catch (error) {
+      console.error('Error joining room:', error);
+      socket.emit('error', { message: 'Failed to join room' });
+    }
+  });
+
+  socket.on('leave-room', async () => {
+    try {
+      if (!socket.playerId || !socket.roomCode) return;
+
+      const roomCode = socket.roomCode;
+      const playerId = socket.playerId;
+
+      // Remove player from database
+      await dbManager.removePlayer(playerId);
+
+      // Remove from memory
+      if (gameRooms.has(roomCode)) {
+        const roomState = gameRooms.get(roomCode);
+        roomState.players = roomState.players.filter(p => p.id !== playerId);
+        
+        // If no players left, clean up room
+        if (roomState.players.length === 0) {
+          gameRooms.delete(roomCode);
+        } else {
+          // Notify remaining players
+          io.to(roomCode).emit('player-left', {
+            playerId: playerId,
+            players: roomState.players
+          });
+        }
+      }
+
+      // Remove socket mapping
+      playerSockets.delete(playerId);
+      socket.leave(roomCode);
+
+      console.log(`[${new Date().toISOString()}] Player ${playerId} left room ${roomCode}`);
+
+    } catch (error) {
+      console.error('Error leaving room:', error);
+    }
+  });
+
+  socket.on('start-game', async (data) => {
+    try {
+      const { roomCode } = data;
+      
+      if (!gameRooms.has(roomCode)) {
+        socket.emit('error', { message: 'Room not found' });
+        return;
+      }
+
+      const roomState = gameRooms.get(roomCode);
+      
+      if (roomState.players.length < 2) {
+        socket.emit('error', { message: 'Need at least 2 players to start game' });
+        return;
+      }
+
+      if (roomState.gameState !== 'waiting') {
+        socket.emit('error', { message: 'Game already in progress' });
+        return;
+      }
+
+      // Initialize game
+      roomState.gameStarted = true;
+      roomState.roundCount = 0;
+      roomState.scores = {};
+      
+      // Initialize scores for all players
+      roomState.players.forEach(player => {
+        roomState.scores[player.name] = 0;
+      });
+
+      // Start first round
+      await startRound(roomCode);
+
+    } catch (error) {
+      console.error('Error starting game:', error);
+      socket.emit('error', { message: 'Failed to start game' });
+    }
+  });
+
+  socket.on('submit-prompt', async (data) => {
+    try {
+      const { roundId, promptText } = data;
+      
+      if (!socket.playerId || !validatePromptText(promptText)) {
+        socket.emit('error', { message: 'Invalid prompt' });
+        return;
+      }
+
+      // Get player info
+      const player = await getPlayerById(socket.playerId);
+      if (!player) {
+        socket.emit('error', { message: 'Player not found' });
+        return;
+      }
+
+      // Submit prompt to database
+      await dbManager.submitPrompt(roundId, player.name, promptText.trim());
+
+      // Notify all players in room
+      const roomCode = socket.roomCode;
+      if (roomCode) {
+        io.to(roomCode).emit('prompt-submitted', {
+          playerName: player.name,
+          roundId: roundId
+        });
+        
+        // Check if all players have submitted
+        const roomState = gameRooms.get(roomCode);
+        if (roomState && roomState.currentRound && roomState.currentRound.id === roundId) {
+          const allSubmissions = await dbManager.getRoundSubmissions(roundId);
+          const playerCount = roomState.players.length;
+          
+          console.log(`[${new Date().toISOString()}] Round ${roundId}: ${allSubmissions.length}/${playerCount} players submitted`);
+          
+          // If all players have submitted, end the round early
+          if (allSubmissions.length >= playerCount) {
+            console.log(`[${new Date().toISOString()}] All players submitted, ending round early`);
+            await endRound(roomCode, roundId);
+            return;
+          }
+        }
+      }
+
+      console.log(`[${new Date().toISOString()}] Player ${player.name} submitted prompt for round ${roundId}`);
+
+    } catch (error) {
+      console.error('Error submitting prompt:', error);
+      socket.emit('error', { message: 'Failed to submit prompt' });
+    }
+  });
+
+  socket.on('disconnect', async () => {
+    try {
+      if (socket.playerId && socket.roomCode) {
+        await dbManager.removePlayer(socket.playerId);
+        
+        const roomCode = socket.roomCode;
+        if (gameRooms.has(roomCode)) {
+          const roomState = gameRooms.get(roomCode);
+          roomState.players = roomState.players.filter(p => p.id !== socket.playerId);
+          
+          if (roomState.players.length === 0) {
+            gameRooms.delete(roomCode);
+          } else {
+            io.to(roomCode).emit('player-left', {
+              playerId: socket.playerId,
+              players: roomState.players
+            });
+          }
+        }
+        
+        playerSockets.delete(socket.playerId);
+      }
+      
+      console.log(`[${new Date().toISOString()}] Player disconnected: ${socket.id}`);
+    } catch (error) {
+      console.error('Error handling disconnect:', error);
+    }
+  });
+});
+
+// Helper function to get player by ID
+async function getPlayerById(playerId) {
+  const db = dbManager.getDb();
+  return new Promise((resolve, reject) => {
+    db.get('SELECT * FROM players WHERE id = ?', [playerId], (err, row) => {
+      if (err) reject(err);
+      else resolve(row);
+    });
+  });
+}
+
+// Start a new round
+async function startRound(roomCode) {
+  try {
+    const roomState = gameRooms.get(roomCode);
+    if (!roomState) return;
+
+    roomState.gameState = 'playing';
+    roomState.roundCount++;
+    
+    // Get random dataset entry
+    const datasetEntry = getRandomDatasetEntry();
+    console.log('Multiplayer round entry:', datasetEntry);
+    
+    const roundId = generateRoundId();
+    const filename = path.basename(datasetEntry.image_file);
+    const imagePath = `/api/images/${filename}`;
+    const sourcePrompt = datasetEntry.prompt;
+    const timeLimit = roomState.gameSettings.timeLimit;
+    
+    console.log('Multiplayer image path:', imagePath);
+    
+    // Create round in database
+    await dbManager.createRound(roundId, roomCode, imagePath, sourcePrompt, timeLimit);
+    
+    roomState.currentRound = {
+      id: roundId,
+      imagePath: imagePath,
+      timeLimit: timeLimit,
+      startTime: Date.now(),
+      roundNumber: roomState.roundCount
+    };
+
+    // Notify all players
+    io.to(roomCode).emit('round-started', {
+      roundId: roundId,
+      imagePath: imagePath,
+      timeLimit: timeLimit,
+      players: roomState.players,
+      roundNumber: roomState.roundCount,
+      totalRounds: roomState.totalRounds,
+      currentScores: roomState.scores
+    });
+
+    // Set timer to end round
+    setTimeout(async () => {
+      await endRound(roomCode, roundId);
+    }, timeLimit * 1000);
+
+    console.log(`[${new Date().toISOString()}] Round ${roomState.roundCount}/${roomState.totalRounds} started in room ${roomCode}`);
+
+  } catch (error) {
+    console.error('Error starting round:', error);
+  }
+}
+
+// End a round and calculate results
+async function endRound(roomCode, roundId) {
+  try {
+    const roomState = gameRooms.get(roomCode);
+    if (!roomState) return;
+
+    // Close the round
+    await dbManager.closeRound(roundId);
+
+    // Get all submissions
+    const submissions = await dbManager.getRoundSubmissions(roundId);
+    const round = await dbManager.getRound(roundId);
+
+    // Calculate scores for all submissions
+    const results = [];
+    for (const submission of submissions) {
+      const scoringResult = scoring.scoreAttempt(round.sourcePrompt, submission.promptText);
+      
+      // Update cumulative scores
+      if (roomState.scores[submission.playerName] !== undefined) {
+        roomState.scores[submission.playerName] += scoringResult.score;
+      }
+      
+      await dbManager.saveResult(
+        roundId,
+        submission.playerName,
+        submission.promptText,
+        scoringResult.score,
+        scoringResult.matched.join(', '),
+        scoringResult.missed.join(', ')
+      );
+
+      results.push({
+        playerName: submission.playerName,
+        promptText: submission.promptText,
+        score: scoringResult.score,
+        matched: scoringResult.matched,
+        missed: scoringResult.missed,
+        explanation: scoringResult.explanation
+      });
+    }
+
+    // Sort results by score
+    results.sort((a, b) => b.score - a.score);
+
+    // Check if game is complete
+    const isGameComplete = roomState.roundCount >= roomState.totalRounds;
+    
+    if (isGameComplete) {
+      roomState.gameState = 'finished';
+      
+      // Calculate final rankings
+      const finalRankings = Object.entries(roomState.scores)
+        .map(([name, score]) => ({ name, score }))
+        .sort((a, b) => b.score - a.score);
+      
+      // Notify all players with final results
+      io.to(roomCode).emit('game-completed', {
+        roundId: roundId,
+        sourcePrompt: round.sourcePrompt,
+        results: results,
+        finalRankings: finalRankings,
+        stats: scoring.getScoringStats(results),
+        roundNumber: roomState.roundCount,
+        totalRounds: roomState.totalRounds
+      });
+    } else {
+      // Notify all players with round results
+    io.to(roomCode).emit('round-ended', {
+      roundId: roundId,
+      sourcePrompt: round.sourcePrompt,
+      results: results,
+        stats: scoring.getScoringStats(results),
+        roundNumber: roomState.roundCount,
+        totalRounds: roomState.totalRounds,
+        currentScores: roomState.scores
+    });
+    }
+
+    roomState.gameState = isGameComplete ? 'finished' : 'waiting';
+    roomState.currentRound = null;
+
+    console.log(`[${new Date().toISOString()}] Round ${roomState.roundCount}/${roomState.totalRounds} ended in room ${roomCode}`);
+
+  } catch (error) {
+    console.error('Error ending round:', error);
+  }
+}
+
+// API Routes (keeping existing REST API for compatibility)
 app.get('/api/health', (req, res) => {
   res.json({ ok: true });
 });
 
-// Check if room has active round
-app.get('/api/rooms/:code/active-round', async (req, res) => {
+// Dataset management
+const fs = require('fs');
+const csv = require('csv-parser');
+
+// Load dataset
+let dataset = [];
+let datasetLoaded = false;
+
+async function loadDataset() {
+  return new Promise((resolve, reject) => {
+    const results = [];
+    fs.createReadStream(path.join(__dirname, 'dataset/custom_prompts_df.csv'))
+      .pipe(csv())
+      .on('data', (data) => results.push(data))
+      .on('end', () => {
+        dataset = results;
+        datasetLoaded = true;
+        console.log(`[${new Date().toISOString()}] Loaded ${dataset.length} dataset entries`);
+        resolve();
+      })
+      .on('error', reject);
+  });
+}
+
+// Get random dataset entry
+function getRandomDatasetEntry() {
+  if (!datasetLoaded || dataset.length === 0) {
+    throw new Error('Dataset not loaded');
+  }
+  const randomIndex = Math.floor(Math.random() * dataset.length);
+  return dataset[randomIndex];
+}
+
+// Image serving endpoint
+app.get('/api/images/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const imagePath = path.join(__dirname, 'dataset/images/0', filename);
+  
+  console.log(`[${new Date().toISOString()}] Serving image: ${filename}`);
+  console.log(`[${new Date().toISOString()}] Image path: ${imagePath}`);
+  console.log(`[${new Date().toISOString()}] File exists: ${fs.existsSync(imagePath)}`);
+  
+  // Check if file exists
+  if (!fs.existsSync(imagePath)) {
+    console.error(`[${new Date().toISOString()}] Image not found: ${imagePath}`);
+    return res.status(404).json({ error: 'Image not found', filename, imagePath });
+  }
+  
+  // Set appropriate headers
+  res.setHeader('Content-Type', 'image/png');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  
+  // Stream the image
+  const stream = fs.createReadStream(imagePath);
+  stream.pipe(res);
+  
+  stream.on('error', (err) => {
+    console.error('Error streaming image:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Error serving image', details: err.message });
+    }
+  });
+  
+  stream.on('end', () => {
+    console.log(`[${new Date().toISOString()}] Successfully served image: ${filename}`);
+  });
+});
+
+// Daily challenge endpoint
+app.get('/api/daily-challenge', (req, res) => {
   try {
-    const { code } = req.params;
-    
-    if (!validateRoomCode(code)) {
-      return res.status(400).json({ error: 'Invalid room code format' });
+    if (!datasetLoaded) {
+      return res.status(503).json({ error: 'Dataset not loaded yet' });
     }
     
-    const room = await dbManager.getRoom(code);
-    if (!room) {
-      return res.status(404).json({ error: 'Room not found' });
-    }
+    const entry = getRandomDatasetEntry();
+    console.log('Daily challenge entry:', entry);
     
-    // Find active round for this room
-    const db = dbManager.getDb();
-    const activeRound = await new Promise((resolve, reject) => {
-      db.get(
-        'SELECT * FROM rounds WHERE code = ? AND closedAt IS NULL ORDER BY createdAt DESC LIMIT 1',
-        [code],
-        (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        }
-      );
-    });
+    // Extract just the filename from the full path
+    const filename = path.basename(entry.image_file);
+    const imagePath = `/api/images/${filename}`;
+    
+    console.log('Generated image path:', imagePath);
     
     res.json({
       success: true,
-      hasActiveRound: !!activeRound,
-      roundId: activeRound ? activeRound.id : null
+      imagePath: imagePath,
+      sourcePrompt: entry.prompt,
+      challengeId: `daily_${new Date().toISOString().split('T')[0]}`
     });
   } catch (error) {
-    console.error('Error checking active round:', error);
-    res.status(500).json({ error: 'Failed to check active round' });
+    console.error('Error getting daily challenge:', error);
+    res.status(500).json({ error: 'Failed to get daily challenge' });
   }
 });
 
-// Placeholder image endpoint
-app.get('/api/placeholder/mountain-scene', (req, res) => {
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-            body {
-                margin: 0;
-                padding: 20px;
-                background: linear-gradient(to bottom, #87CEEB 0%, #87CEEB 30%, #90EE90 30%, #90EE90 100%);
-                font-family: Arial, sans-serif;
-            }
-            .mountain-scene {
-                width: 100%;
-                max-width: 600px;
-                height: 400px;
-                margin: 0 auto;
-                position: relative;
-                background: linear-gradient(to bottom, #87CEEB 0%, #87CEEB 40%, #90EE90 40%, #90EE90 100%);
-                border-radius: 10px;
-                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-            }
-            .mountain {
-                position: absolute;
-                bottom: 40%;
-                width: 0;
-                height: 0;
-            }
-            .mountain-1 {
-                left: 10%;
-                border-left: 80px solid transparent;
-                border-right: 80px solid transparent;
-                border-bottom: 120px solid #8B4513;
-            }
-            .mountain-2 {
-                left: 25%;
-                border-left: 60px solid transparent;
-                border-right: 60px solid transparent;
-                border-bottom: 100px solid #A0522D;
-            }
-            .mountain-3 {
-                left: 40%;
-                border-left: 100px solid transparent;
-                border-right: 100px solid transparent;
-                border-bottom: 140px solid #8B4513;
-            }
-            .mountain-4 {
-                left: 60%;
-                border-left: 70px solid transparent;
-                border-right: 70px solid transparent;
-                border-bottom: 110px solid #A0522D;
-            }
-            .mountain-5 {
-                left: 75%;
-                border-left: 90px solid transparent;
-                border-right: 90px solid transparent;
-                border-bottom: 130px solid #8B4513;
-            }
-            .path {
-                position: absolute;
-                bottom: 20%;
-                left: 20%;
-                width: 60%;
-                height: 8px;
-                background: #654321;
-                border-radius: 4px;
-            }
-            .vehicle {
-                position: absolute;
-                bottom: 22%;
-                left: 30%;
-                width: 20px;
-                height: 12px;
-                background: #FF0000;
-                border-radius: 2px;
-            }
-            .person {
-                position: absolute;
-                bottom: 24%;
-                left: 45%;
-                width: 8px;
-                height: 16px;
-                background: #000000;
-                border-radius: 1px;
-            }
-            .person::after {
-                content: '';
-                position: absolute;
-                top: -4px;
-                left: -2px;
-                width: 12px;
-                height: 8px;
-                background: #FFE4B5;
-                border-radius: 50%;
-            }
-            .sun {
-                position: absolute;
-                top: 10%;
-                right: 15%;
-                width: 40px;
-                height: 40px;
-                background: #FFD700;
-                border-radius: 50%;
-            }
-            .cloud {
-                position: absolute;
-                top: 15%;
-                left: 10%;
-                width: 60px;
-                height: 20px;
-                background: white;
-                border-radius: 20px;
-            }
-            .cloud::before {
-                content: '';
-                position: absolute;
-                top: -10px;
-                left: 10px;
-                width: 30px;
-                height: 30px;
-                background: white;
-                border-radius: 50%;
-            }
-            .cloud::after {
-                content: '';
-                position: absolute;
-                top: -5px;
-                right: 10px;
-                width: 25px;
-                height: 25px;
-                background: white;
-                border-radius: 50%;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="mountain-scene">
-            <div class="sun"></div>
-            <div class="cloud"></div>
-            <div class="mountain mountain-1"></div>
-            <div class="mountain mountain-2"></div>
-            <div class="mountain mountain-3"></div>
-            <div class="mountain mountain-4"></div>
-            <div class="mountain mountain-5"></div>
-            <div class="path"></div>
-            <div class="vehicle"></div>
-            <div class="person"></div>
-        </div>
-    </body>
-    </html>
-  `);
+// Score prompt endpoint
+app.post('/api/score-prompt', (req, res) => {
+  try {
+    const { original, attempt } = req.body;
+    
+    if (!original || !attempt) {
+      return res.status(400).json({ error: 'Both original and attempt prompts are required' });
+    }
+    
+    const result = scoring.scoreAttempt(original, attempt);
+    
+    res.json({
+      success: true,
+      score: result.score,
+      matched: result.matched,
+      missed: result.missed,
+      explanation: result.explanation,
+      details: result.details
+    });
+  } catch (error) {
+    console.error('Error scoring prompt:', error);
+    res.status(500).json({ error: 'Failed to score prompt' });
+  }
 });
 
 // Room Management Routes
@@ -262,7 +620,7 @@ app.post('/api/rooms', async (req, res) => {
     const { settings = {} } = req.body;
     const code = generateRoomCode();
     
-    // Check if room code already exists (very unlikely but good practice)
+    // Check if room code already exists
     const existingRoom = await dbManager.getRoom(code);
     if (existingRoom) {
       return res.status(409).json({ error: 'Room code already exists, please try again' });
@@ -312,300 +670,6 @@ app.get('/api/rooms/:code', async (req, res) => {
   }
 });
 
-app.post('/api/rooms/:code/join', async (req, res) => {
-  try {
-    const { code } = req.params;
-    const { playerName } = req.body;
-    
-    if (!validateRoomCode(code)) {
-      return res.status(400).json({ error: 'Invalid room code format' });
-    }
-    
-    if (!validatePlayerName(playerName)) {
-      return res.status(400).json({ error: 'Invalid player name' });
-    }
-    
-    const room = await dbManager.getRoom(code);
-    if (!room) {
-      return res.status(404).json({ error: 'Room not found' });
-    }
-    
-    const players = await dbManager.getRoomPlayers(code);
-    
-    // Check if player name is already taken
-    const nameExists = players.some(p => p.name.toLowerCase() === playerName.toLowerCase());
-    if (nameExists) {
-      return res.status(409).json({ error: 'Player name already taken' });
-    }
-    
-    // Check room capacity (max 8 players)
-    if (players.length >= 8) {
-      return res.status(409).json({ error: 'Room is full' });
-    }
-    
-    const result = await dbManager.addPlayer(code, playerName.trim());
-    
-    res.json({
-      success: true,
-      player: {
-        id: result.lastInsertRowid,
-        name: playerName.trim(),
-        code: code
-      }
-    });
-  } catch (error) {
-    console.error('Error joining room:', error);
-    res.status(500).json({ error: 'Failed to join room' });
-  }
-});
-
-app.get('/api/rooms/:code/players', async (req, res) => {
-  try {
-    const { code } = req.params;
-    
-    if (!validateRoomCode(code)) {
-      return res.status(400).json({ error: 'Invalid room code format' });
-    }
-    
-    const players = dbManager.getRoomPlayers(code);
-    
-    res.json({
-      success: true,
-      players: players
-    });
-  } catch (error) {
-    console.error('Error getting players:', error);
-    res.status(500).json({ error: 'Failed to get players' });
-  }
-});
-
-app.delete('/api/rooms/:code/players/:playerId', async (req, res) => {
-  try {
-    const { code, playerId } = req.params;
-    
-    if (!validateRoomCode(code)) {
-      return res.status(400).json({ error: 'Invalid room code format' });
-    }
-    
-    const result = dbManager.removePlayer(playerId);
-    
-    if (result.changes === 0) {
-      return res.status(404).json({ error: 'Player not found' });
-    }
-    
-    res.json({
-      success: true,
-      message: 'Player removed successfully'
-    });
-  } catch (error) {
-    console.error('Error removing player:', error);
-    res.status(500).json({ error: 'Failed to remove player' });
-  }
-});
-
-// Game Management Routes
-app.post('/api/rooms/:code/start', async (req, res) => {
-  try {
-    const { code } = req.params;
-    
-    if (!validateRoomCode(code)) {
-      return res.status(400).json({ error: 'Invalid room code format' });
-    }
-    
-    const room = dbManager.getRoom(code);
-    if (!room) {
-      return res.status(404).json({ error: 'Room not found' });
-    }
-    
-    const players = dbManager.getRoomPlayers(code);
-    if (players.length < 2) {
-      return res.status(400).json({ error: 'Need at least 2 players to start game' });
-    }
-    
-    // For MVP, we'll use a placeholder image and prompt
-    const roundId = generateRoundId();
-    const imagePath = '/api/placeholder/mountain-scene';
-    const sourcePrompt = 'A person climbing mountains with a vehicle on a winding path';
-    const timeLimit = 60; // 60 seconds
-    
-    dbManager.createRound(roundId, code, imagePath, sourcePrompt, timeLimit);
-    
-    res.json({
-      success: true,
-      game: {
-        roundId: roundId,
-        roomCode: code,
-        imagePath: imagePath,
-        timeLimit: timeLimit,
-        players: players
-      }
-    });
-  } catch (error) {
-    console.error('Error starting game:', error);
-    res.status(500).json({ error: 'Failed to start game' });
-  }
-});
-
-app.get('/api/rounds/:roundId', async (req, res) => {
-  try {
-    const { roundId } = req.params;
-    
-    const round = await dbManager.getRound(roundId);
-    if (!round) {
-      return res.status(404).json({ error: 'Round not found' });
-    }
-    
-    // Don't expose the source prompt to players during active round
-    const publicRound = {
-      id: round.id,
-      code: round.code,
-      imagePath: round.imagePath,
-      timeLimit: round.timeLimit,
-      createdAt: round.createdAt,
-      closedAt: round.closedAt,
-      isActive: !round.closedAt
-    };
-    
-    res.json({
-      success: true,
-      round: publicRound
-    });
-  } catch (error) {
-    console.error('Error getting round:', error);
-    res.status(500).json({ error: 'Failed to get round' });
-  }
-});
-
-app.post('/api/rounds/:roundId/submit', async (req, res) => {
-  try {
-    const { roundId } = req.params;
-    const { playerName, promptText } = req.body;
-    
-    if (!validatePlayerName(playerName)) {
-      return res.status(400).json({ error: 'Invalid player name' });
-    }
-    
-    if (!validatePromptText(promptText)) {
-      return res.status(400).json({ error: 'Invalid prompt text' });
-    }
-    
-    const round = dbManager.getRound(roundId);
-    if (!round) {
-      return res.status(404).json({ error: 'Round not found' });
-    }
-    
-    if (round.closedAt) {
-      return res.status(400).json({ error: 'Round has already ended' });
-    }
-    
-    // Check if player already submitted
-    const existingSubmissions = await dbManager.getRoundSubmissions(roundId);
-    const alreadySubmitted = existingSubmissions.some(s => s.playerName === playerName);
-    
-    if (alreadySubmitted) {
-      return res.status(409).json({ error: 'Player has already submitted a prompt' });
-    }
-    
-    await dbManager.submitPrompt(roundId, playerName, promptText.trim());
-    
-    res.json({
-      success: true,
-      message: 'Prompt submitted successfully'
-    });
-  } catch (error) {
-    console.error('Error submitting prompt:', error);
-    res.status(500).json({ error: 'Failed to submit prompt' });
-  }
-});
-
-app.get('/api/rounds/:roundId/results', async (req, res) => {
-  try {
-    const { roundId } = req.params;
-    
-    const round = await dbManager.getRound(roundId);
-    if (!round) {
-      return res.status(404).json({ error: 'Round not found' });
-    }
-    
-    const submissions = await dbManager.getRoundSubmissions(roundId);
-    const results = await dbManager.getRoundResults(roundId);
-    
-    // If no results yet, calculate them
-    if (results.length === 0 && submissions.length > 0) {
-      // Close the round
-      await dbManager.closeRound(roundId);
-      
-      // Calculate scores for all submissions
-      for (const submission of submissions) {
-        const scoringResult = scoring.scoreAttempt(round.sourcePrompt, submission.promptText);
-        
-        await dbManager.saveResult(
-          roundId,
-          submission.playerName,
-          submission.promptText,
-          scoringResult.score,
-          scoringResult.matched.join(', '),
-          scoringResult.missed.join(', ')
-        );
-      }
-      
-      // Get updated results
-      const updatedResults = await dbManager.getRoundResults(roundId);
-      
-      res.json({
-        success: true,
-        round: {
-          ...round,
-          sourcePrompt: round.sourcePrompt // Now reveal the original prompt
-        },
-        submissions: submissions,
-        results: updatedResults,
-        stats: scoring.getScoringStats(updatedResults)
-      });
-    } else {
-      res.json({
-        success: true,
-        round: {
-          ...round,
-          sourcePrompt: round.sourcePrompt
-        },
-        submissions: submissions,
-        results: results,
-        stats: scoring.getScoringStats(results)
-      });
-    }
-  } catch (error) {
-    console.error('Error getting round results:', error);
-    res.status(500).json({ error: 'Failed to get round results' });
-  }
-});
-
-app.get('/api/rooms/:code/final-results', async (req, res) => {
-  try {
-    const { code } = req.params;
-    
-    if (!validateRoomCode(code)) {
-      return res.status(400).json({ error: 'Invalid room code format' });
-    }
-    
-    const room = await dbManager.getRoom(code);
-    if (!room) {
-      return res.status(404).json({ error: 'Room not found' });
-    }
-    
-    const finalResults = await dbManager.getRoomResults(code);
-    
-    res.json({
-      success: true,
-      room: room,
-      finalResults: finalResults
-    });
-  } catch (error) {
-    console.error('Error getting final results:', error);
-    res.status(500).json({ error: 'Failed to get final results' });
-  }
-});
-
 // Catch-all route for frontend routing (SPA behavior)
 app.get('*', (req, res) => {
   // Don't serve index.html for API routes
@@ -652,9 +716,14 @@ async function startServer() {
     // Wait for database initialization
     await dbManager.init();
     
-    app.listen(PORT, () => {
+    // Load dataset
+    await loadDataset();
+    
+    server.listen(PORT, () => {
       console.log(`[${new Date().toISOString()}] Prompt Battle WebGame server running on http://localhost:${PORT}`);
+      console.log(`[${new Date().toISOString()}] WebSocket server enabled for real-time multiplayer`);
       console.log(`[${new Date().toISOString()}] Frontend served from: ${frontendPath}`);
+      console.log(`[${new Date().toISOString()}] Dataset loaded with ${dataset.length} entries`);
     });
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Failed to start server:`, error);

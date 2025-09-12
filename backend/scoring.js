@@ -72,15 +72,18 @@ function calculateSemanticScore(original, attempt) {
   
   if (overlap.originalCount > 0) {
     // Primary score: percentage of original words matched
-    const wordMatchScore = (overlap.matchedCount / overlap.originalCount) * 70;
+    const wordMatchScore = (overlap.matchedCount / overlap.originalCount) * 60;
     
     // Secondary score: penalty for extra words (but not too harsh)
-    const extraPenalty = Math.min(overlap.extra.length * 2, 20);
+    const extraPenalty = Math.min(overlap.extra.length * 1.5, 15);
     
     // Tertiary score: length similarity bonus
-    const lengthBonus = 0;
-    if (Math.abs(overlap.originalCount - overlap.attemptCount) <= 2) {
-      lengthBonus = 10; // Small bonus for similar length
+    let lengthBonus = 0;
+    const lengthRatio = Math.min(overlap.attemptCount, overlap.originalCount) / Math.max(overlap.attemptCount, overlap.originalCount);
+    if (lengthRatio >= 0.8) {
+      lengthBonus = 10; // Bonus for similar length
+    } else if (lengthRatio >= 0.6) {
+      lengthBonus = 5; // Smaller bonus
     }
     
     score = Math.max(0, wordMatchScore - extraPenalty + lengthBonus);
@@ -93,17 +96,75 @@ function calculateSemanticScore(original, attempt) {
   if (originalLower === attemptLower) {
     score = 100; // Perfect match
   } else if (attemptLower.includes(originalLower) || originalLower.includes(attemptLower)) {
-    score = Math.max(score, 85); // High score for substring matches
+    score = Math.max(score, 90); // High score for substring matches
   }
   
-  // Bonus for key concept matches (simple keyword weighting)
-  const keyConcepts = ['mountain', 'climbing', 'person', 'vehicle', 'car', 'jeep', 'path', 'road'];
-  const keyMatches = keyConcepts.filter(concept => 
-    originalLower.includes(concept) && attemptLower.includes(concept)
-  );
+  // Enhanced semantic matching for common AI art concepts
+  const semanticCategories = {
+    // Characters and people
+    people: ['person', 'man', 'woman', 'child', 'boy', 'girl', 'people', 'character', 'figure', 'human', 'individual', 'someone', 'guy', 'lady'],
+    // Actions and activities
+    actions: ['standing', 'sitting', 'walking', 'running', 'jumping', 'climbing', 'eating', 'drinking', 'playing', 'working', 'holding', 'carrying', 'wearing', 'looking', 'smiling', 'laughing'],
+    // Objects and items
+    objects: ['car', 'vehicle', 'house', 'building', 'tree', 'mountain', 'road', 'path', 'table', 'chair', 'book', 'phone', 'umbrella', 'frisbee', 'clock', 'apple', 'barbershop', 'train', 'laptop', 'cabin', 'village', 'factory', 'bar', 'spaceship', 'tenement', 'cutter', 'sand', 'fence', 'plant', 'fruits', 'vegetables', 'cyprinodont', 'installation', 'art', 'piece', 'claymation', 'dslr', 'photograph', 'rembrandt', 'painting', 'riesling', 'hoopoe', 'curve', 'fisheye', 'lens'],
+    // Art styles and techniques
+    styles: ['painting', 'drawing', 'photograph', 'photo', 'render', '3d', 'vector', 'digital', 'oil', 'watercolor', 'sketch', 'style', 'fashion', 'show', 'batters', 'box', 'pitcher', 'pitches', 'elastic', 'frightening', 'father', 'throwing', 'white', 'fresh', 'bumpy', 'green', 'wild', 'daring', 'boys', 'sitting', 'tall', 'building', 'big', 'city', 'average', 'young', 'men', 'tilting', 'around'],
+    // Colors and visual properties
+    colors: ['red', 'blue', 'green', 'yellow', 'black', 'white', 'colorful', 'bright', 'dark', 'light', 'golden', 'silver', 'brown', 'purple', 'orange', 'pink', 'gray', 'grey'],
+    // Settings and environments
+    settings: ['indoor', 'outdoor', 'street', 'park', 'forest', 'city', 'village', 'beach', 'mountain', 'desert', 'town', 'factory', 'bar', 'cabin', 'village', 'spaceship', 'tenement', 'installation', 'art', 'piece', 'big', 'city'],
+    // Time and weather
+    time: ['day', 'night', 'morning', 'evening', 'sunny', 'cloudy', 'rainy', 'snowy', 'foggy', 'old', 'fashioned', 'photograph', 'soft', 'pretzel', 'street', 'lights', 'night', 'young', 'man', 'eating', 'plant', 'fence', 'style', 'old', 'fashioned', 'photograph', 'clown', 'cutter', 'playing', 'sand', 'style', 'vector', 'drawing', 'judge', 'fashion', 'show', 'town', 'batters', 'box', 'pitcher', 'pitches', 'style', '3d', 'render', 'elastic', 'old', 'man', 'saying', 'something', 'frightening', 'father', 'throwing', 'white', 'frisbee', 'factory', 'selling', 'fresh', 'fruits', 'vegetables', 'bumpy', 'clock', 'cyprinodont', 'tenement', 'cabin', 'style', 'installation', 'art', 'piece', 'green', 'wild', 'apple', 'village', 'style', 'claymation', 'figure', 'group', 'daring', 'boys', 'sitting', 'tall', 'building', 'spaceship', 'style', 'dslr', 'photograph', 'barbershop', 'umbrella', 'train', 'style', 'rembrandt', 'painting', 'dangerous', 'riesling', 'bar', 'four', 'average', 'young', 'men', 'tilting', 'curve', 'style', 'fisheye', 'lens', 'photograph', 'drawing', 'hoopoe', 'leaning', 'laptop', 'big', 'city']
+  };
   
-  if (keyMatches.length > 0) {
-    score += keyMatches.length * 5; // Small bonus for key concepts
+  // Calculate semantic category matches
+  let semanticBonus = 0;
+  for (const [category, keywords] of Object.entries(semanticCategories)) {
+    const originalMatches = keywords.filter(keyword => originalLower.includes(keyword));
+    const attemptMatches = keywords.filter(keyword => attemptLower.includes(keyword));
+    
+    if (originalMatches.length > 0 && attemptMatches.length > 0) {
+      const categoryScore = (attemptMatches.length / originalMatches.length) * 5;
+      semanticBonus += Math.min(categoryScore, 10); // Cap per category
+    }
+  }
+  
+  score += semanticBonus;
+  
+  // Bonus for maintaining word order (partial)
+  const originalWords = originalLower.split(/\s+/);
+  const attemptWords = attemptLower.split(/\s+/);
+  let orderBonus = 0;
+  
+  if (originalWords.length > 1 && attemptWords.length > 1) {
+    let consecutiveMatches = 0;
+    let maxConsecutive = 0;
+    
+    for (let i = 0; i < originalWords.length - 1; i++) {
+      const currentWord = originalWords[i];
+      const nextWord = originalWords[i + 1];
+      
+      const currentIndex = attemptWords.indexOf(currentWord);
+      const nextIndex = attemptWords.indexOf(nextWord);
+      
+      if (currentIndex !== -1 && nextIndex !== -1 && nextIndex === currentIndex + 1) {
+        consecutiveMatches++;
+        maxConsecutive = Math.max(maxConsecutive, consecutiveMatches);
+      } else {
+        consecutiveMatches = 0;
+      }
+    }
+    
+    if (maxConsecutive > 0) {
+      orderBonus = Math.min(maxConsecutive * 3, 15); // Bonus for word order
+    }
+  }
+  
+  score += orderBonus;
+  
+  // Penalty for completely unrelated content
+  if (overlap.matchedCount === 0 && originalWords.length > 3) {
+    score = Math.max(0, score - 20); // Penalty for no matches
   }
   
   return Math.min(100, Math.round(score));
@@ -162,24 +223,45 @@ function generateExplanation(score, overlap) {
   let explanation = `You matched ${matchedCount} out of ${totalOriginal} key words from the original prompt. `;
   
   if (score >= 90) {
-    explanation += "Excellent! You captured almost everything important.";
+    explanation += "🏆 Excellent! You captured almost everything important. This is a very accurate description!";
+  } else if (score >= 80) {
+    explanation += "🎯 Great job! You got most of the key concepts and details.";
   } else if (score >= 70) {
-    explanation += "Great job! You got most of the key concepts.";
-  } else if (score >= 50) {
-    explanation += "Good attempt! You got some key words but missed others.";
-  } else if (score >= 30) {
-    explanation += "Not bad, but you missed several important elements.";
+    explanation += "👍 Good attempt! You captured the main elements well.";
+  } else if (score >= 60) {
+    explanation += "👌 Not bad! You got some key words but missed others.";
+  } else if (score >= 40) {
+    explanation += "🤔 Decent effort, but you missed several important elements.";
+  } else if (score >= 20) {
+    explanation += "📝 Try to focus more on the main subjects, actions, and visual details in the image.";
   } else {
-    explanation += "Try to focus on the main subjects and actions in the image.";
+    explanation += "🔄 This doesn't seem to match the image well. Look more carefully at what you see.";
   }
   
   if (missedCount > 0) {
-    explanation += ` You missed: ${overlap.missed.slice(0, 3).join(', ')}`;
-    if (missedCount > 3) explanation += ` and ${missedCount - 3} more.`;
+    const importantMissed = overlap.missed.slice(0, 5);
+    explanation += `\n\n❌ You missed these important words: ${importantMissed.join(', ')}`;
+    if (missedCount > 5) explanation += ` and ${missedCount - 5} more.`;
+  }
+  
+  if (matchedCount > 0) {
+    const importantMatched = overlap.matched.slice(0, 5);
+    explanation += `\n\n✅ You correctly included: ${importantMatched.join(', ')}`;
+    if (matchedCount > 5) explanation += ` and ${matchedCount - 5} more.`;
   }
   
   if (extraCount > 0) {
-    explanation += ` You also included some extra words not in the original.`;
+    explanation += `\n\nℹ️ You also included some extra words not in the original (${extraCount} words).`;
+  }
+  
+  // Add specific tips based on score
+  if (score < 50) {
+    explanation += `\n\n💡 Tips for better scoring:
+    • Focus on the main subjects and objects
+    • Include actions and activities you see
+    • Mention the art style or visual quality
+    • Describe colors, lighting, and mood
+    • Be specific about settings and environments`;
   }
   
   return explanation;

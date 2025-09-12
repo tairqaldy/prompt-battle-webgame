@@ -3,36 +3,336 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prompt Battle - Main Lobby</title>
+    <title>Prompt Battle - Multiplayer Game</title>
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
     <div class="container">
-        <h1>Main Lobby</h1>
-        
-        <div class="game-title">
-            <h2>Prompt Battle</h2>
+        <!-- Main Lobby Screen -->
+        <div id="lobby-screen" class="screen active">
+            <h1>Prompt Battle</h1>
+            <p class="subtitle">Multiplayer AI Prompt Competition</p>
+            
+            <div class="main-menu">
+                <button class="menu-btn" onclick="startDailyChallenge()">Daily Challenge</button>
+                <button class="menu-btn" onclick="showCreateRoom()">Create Room</button>
+                <button class="menu-btn" onclick="showJoinRoom()">Join Room</button>
+                <button class="menu-btn" onclick="showHowToPlay()">How To Play</button>
+            </div>
+
+            <div id="create-room-section" class="form-section" style="display: none;">
+                <h3>Create New Room</h3>
+                <div class="form-group">
+                    <label>Your Name:</label>
+                    <input type="text" id="create-player-name" placeholder="Enter your name" maxlength="20">
+                </div>
+                <div class="form-group">
+                    <label>Room Settings:</label>
+                    <select id="rounds-setting">
+                        <option value="3">3 Rounds</option>
+                        <option value="5">5 Rounds</option>
+                        <option value="10">10 Rounds</option>
+                    </select>
+                    <select id="time-setting">
+                        <option value="60">60 seconds</option>
+                        <option value="90">90 seconds</option>
+                        <option value="120">120 seconds</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" onclick="createRoom()">Create Room</button>
+                <button class="btn btn-secondary" onclick="hideCreateRoom()">Cancel</button>
+            </div>
+
+            <div id="join-room-section" class="form-section" style="display: none;">
+                <h3>Join Existing Room</h3>
+                <div class="form-group">
+                    <label>Room Code:</label>
+                    <input type="text" id="join-room-code" placeholder="Enter 6-character code" maxlength="6">
+                </div>
+                <div class="form-group">
+                    <label>Your Name:</label>
+                    <input type="text" id="join-player-name" placeholder="Enter your name" maxlength="20">
+                </div>
+                <button class="btn btn-primary" onclick="joinRoom()">Join Room</button>
+                <button class="btn btn-secondary" onclick="hideJoinRoom()">Cancel</button>
+            </div>
+
+            <div class="online-players">
+                <p>Players Online: <span id="player-count">0</span></p>
+            </div>
         </div>
 
-        <div class="main-menu">
-            <button class="menu-btn" onclick="createParty()">Create Party</button>
-            <button class="menu-btn" onclick="showJoinParty()">Join Party</button>
-            <button class="menu-btn" onclick="showHowToPlay()">How To Play</button>
-            <button class="menu-btn" onclick="showSettings()">Settings</button>
+        <!-- Room Screen -->
+        <div id="room-screen" class="screen">
+            <h1>Room: <span id="room-code-display"></span></h1>
+            
+            <div class="room-layout">
+                <div class="players-section">
+                    <h3>Players (<span id="player-count-room">0</span>/8)</h3>
+                    <div id="players-list" class="players-list"></div>
+                </div>
+
+                <div class="room-actions">
+                    <div id="host-actions" style="display: none;">
+                        <h3>Room Settings</h3>
+                        <div class="settings">
+                            <div class="setting-group">
+                                <label>Rounds:</label>
+                                <select id="rounds-setting-room" onchange="updateRoomSettings()">
+                                    <option value="3">3 Rounds</option>
+                                    <option value="5">5 Rounds</option>
+                                    <option value="10">10 Rounds</option>
+                                </select>
+                            </div>
+                            <div class="setting-group">
+                                <label>Time per Round:</label>
+                                <select id="time-setting-room" onchange="updateRoomSettings()">
+                                    <option value="60">60 seconds</option>
+                                    <option value="90">90 seconds</option>
+                                    <option value="120">120 seconds</option>
+                                </select>
+                            </div>
+                            <div class="setting-group">
+                                <label>Character Limit:</label>
+                                <select id="char-limit-setting-room" onchange="updateRoomSettings()">
+                                    <option value="100">100 characters</option>
+                                    <option value="150">150 characters</option>
+                                    <option value="200">200 characters</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="room-code-display">
+                            <h4>Room Code: <span id="room-code-copy">-</span></h4>
+                            <button class="btn btn-small" onclick="copyRoomCode()">Copy Code</button>
+                        </div>
+                        <button class="btn btn-primary" onclick="startGame()">Start Game</button>
+                        <button class="btn btn-secondary" onclick="leaveRoom()">Leave Room</button>
+                    </div>
+                    
+                    <div id="guest-actions" style="display: none;">
+                        <div class="waiting-message">
+                            <h3>Waiting for Host</h3>
+                            <p>Share this room code with friends!</p>
+                        </div>
+                        <button class="btn btn-secondary" onclick="leaveRoom()">Leave Room</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <div id="join-party-section" class="join-party" style="display: none;">
-            <label for="party-code">Enter Party Code</label>
-            <input type="text" id="party-code" placeholder="ABC123..." maxlength="6">
-            <button class="btn btn-primary" onclick="joinParty()">Join</button>
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen">
+            <div class="game-header">
+                <div class="timer-section">
+                    <div class="timer">
+                        <span id="timer-display">00:00</span>
+                    </div>
+                    <div class="timer-label">Time Remaining</div>
+                </div>
+                
+                <div class="room-info">
+                    <span>Room: <span id="game-room-code"></span></span>
+                    <span>Round <span id="current-round">1</span>/<span id="total-rounds">3</span></span>
+                </div>
+            </div>
+
+            <div class="game-layout">
+                <div class="image-section">
+                    <div class="image-container">
+                        <img id="game-image" src="" alt="Game Image">
+                    </div>
+                </div>
+
+                <div class="prompt-section">
+                    <div class="character-count">
+                        <span id="char-count">0</span> / <span id="char-limit">100</span> characters
+                    </div>
+                    <textarea
+                        id="prompt-input"
+                        placeholder="Describe what you see in the image..."
+                        maxlength="100"
+                        oninput="updateCharCount()"
+                    ></textarea>
+                    <button id="submit-btn" class="btn btn-primary" onclick="submitPrompt()">
+                        Submit Prompt
+                    </button>
+                </div>
+
+                <div class="leaderboard-section">
+                    <h3>Live Leaderboard</h3>
+                    <div id="leaderboard" class="leaderboard"></div>
+                </div>
+            </div>
         </div>
 
-        <div class="online-players">
-            <p>Number of players Online: <span id="player-count">156</span></p>
+        <!-- Results Screen -->
+        <div id="results-screen" class="screen">
+            <h1>Round Results</h1>
+            
+            <div class="results-layout">
+                <div class="player-performance">
+                    <h3>Your Performance</h3>
+                    <div class="performance-stats">
+                        <div class="stat-item">
+                            <span>Your Score:</span>
+                            <span id="player-score">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span>Rank:</span>
+                            <span id="player-rank">-</span>
+                        </div>
+                    </div>
+                    
+                    <div class="prompt-comparison">
+                        <div class="prompt-box">
+                            <label>Your Prompt:</label>
+                            <div id="player-prompt">Loading...</div>
+                        </div>
+                        <div class="prompt-box">
+                            <label>Original Prompt:</label>
+                            <div id="original-prompt">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="round-leaderboard">
+                    <h3>Round Leaderboard</h3>
+                    <div id="round-leaderboard" class="leaderboard"></div>
+                    
+                    <div id="next-round-section" style="display: none;">
+                        <button class="btn btn-primary" onclick="nextRound()">Next Round</button>
+                    </div>
+                    
+                    <div id="game-complete-section" style="display: none;">
+                        <button class="btn btn-primary" onclick="viewFinalResults()">View Final Results</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Daily Challenge Screen -->
+        <div id="daily-screen" class="screen">
+            <div class="game-header">
+                <div class="timer-section">
+                    <div class="timer">
+                        <span id="daily-timer-display">00:00</span>
+                    </div>
+                    <div class="timer-label">Time Remaining</div>
+                </div>
+                
+                <div class="room-info">
+                    <span>Daily Challenge</span>
+                    <span id="daily-challenge-id">Loading...</span>
+                </div>
+            </div>
+
+            <div class="game-layout">
+                <div class="image-section">
+                    <div class="image-container">
+                        <img id="daily-image" src="" alt="Challenge Image">
+                    </div>
+                </div>
+
+                <div class="prompt-section">
+                    <div class="character-count">
+                        <span id="daily-char-count">0</span> / <span id="daily-char-limit">100</span> characters
+                    </div>
+                    <textarea
+                        id="daily-prompt-input"
+                        placeholder="Describe what you see in the image..."
+                        maxlength="100"
+                        oninput="updateDailyCharCount()"
+                    ></textarea>
+                    <button id="daily-submit-btn" class="btn btn-primary" onclick="submitDailyPrompt()">
+                        Submit Prompt
+                    </button>
+                </div>
+
+                <div class="leaderboard-section">
+                    <h3>Your Performance</h3>
+                    <div id="daily-stats" class="daily-stats">
+                        <div class="stat-item">
+                            <span>Best Score Today:</span>
+                            <span id="daily-best-score">-</span>
+                        </div>
+                        <div class="stat-item">
+                            <span>Attempts Today:</span>
+                            <span id="daily-attempts">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Daily Results Screen -->
+        <div id="daily-results-screen" class="screen">
+            <h1>Daily Challenge Results</h1>
+            
+            <div class="results-layout">
+                <div class="player-performance">
+                    <h3>Your Performance</h3>
+                    <div class="performance-stats">
+                        <div class="stat-item">
+                            <span>Your Score:</span>
+                            <span id="daily-player-score">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span>Accuracy:</span>
+                            <span id="daily-accuracy">0%</span>
+                        </div>
+                    </div>
+                    
+                    <div class="prompt-comparison">
+                        <div class="prompt-box">
+                            <label>Your Prompt:</label>
+                            <div id="daily-player-prompt">Loading...</div>
+                        </div>
+                        <div class="prompt-box">
+                            <label>Original Prompt:</label>
+                            <div id="daily-original-prompt">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="round-leaderboard">
+                    <h3>Daily Leaderboard</h3>
+                    <div id="daily-leaderboard" class="leaderboard"></div>
+                    
+                    <div class="daily-actions">
+                        <button class="btn btn-primary" onclick="retryDailyChallenge()">Try Again</button>
+                        <button class="btn btn-secondary" onclick="returnToLobby()">Return to Lobby</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Final Results Screen -->
+        <div id="final-screen" class="screen">
+            <h1>Game Complete!</h1>
+            
+            <div class="final-layout">
+                <div class="winner-section">
+                    <h2>🏆 Winner</h2>
+                    <div class="winner-info">
+                        <div id="winner-name">Loading...</div>
+                        <div id="winner-score">0</div>
+                    </div>
+                </div>
+
+                <div class="final-leaderboard">
+                    <h3>Final Rankings</h3>
+                    <div id="final-leaderboard" class="leaderboard"></div>
+                    
+                    <div class="final-actions">
+                        <button class="btn btn-primary" onclick="playAgain()">Play Again</button>
+                        <button class="btn btn-secondary" onclick="returnToLobby()">Return to Lobby</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
+
     <script src="/socket.io/socket.io.js"></script>
-    <script type="module" src="js/socket-client.js"></script>
-    <script type="module" src="js/lobby.js"></script>
+    <script src="js/game.js"></script>
 </body>
 </html>

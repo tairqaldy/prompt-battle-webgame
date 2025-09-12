@@ -57,3 +57,7 @@ _site/
 .jekyll-metadata
 /vendor
 Gemfile.lock
+
+# Dataset images (large files - download separately)
+backend/dataset/images/
+backend/dataset/*.csv
