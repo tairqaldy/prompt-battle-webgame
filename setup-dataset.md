@@ -18,19 +18,28 @@ After downloading, you'll get a ZIP file. Extract it and organize the files as f
 backend/dataset/
 ├── custom_prompts_df.csv          # The main CSV file with prompts
 └── images/
-    └── 0/                         # Folder containing all PNG images
-        ├── custom_0_0.png
-        ├── custom_1_0.png
-        ├── custom_2_0.png
-        └── ... (100,000+ images)
+    ├── 0/                         # Images 0-999
+    │   ├── custom_0_0.png
+    │   ├── custom_1_0.png
+    │   └── ... (up to custom_999_0.png)
+    ├── 1/                         # Images 1000-1999
+    │   ├── custom_1000_0.png
+    │   ├── custom_1001_0.png
+    │   └── ... (up to custom_1999_0.png)
+    ├── 2/                         # Images 2000-2999
+    │   ├── custom_2000_0.png
+    │   ├── custom_2001_0.png
+    │   └── ... (up to custom_2999_0.png)
+    └── ...                        # More numbered folders
 ```
 
 ### 3. Verify the Setup
 
 1. Check that `backend/dataset/custom_prompts_df.csv` exists
-2. Check that `backend/dataset/images/0/` contains many PNG files
-3. The CSV should have columns: `prompt,image_file`
-4. Image files should be named like `custom_0_0.png`, `custom_1_0.png`, etc.
+2. Check that `backend/dataset/images/` contains numbered subdirectories (0, 1, 2, etc.)
+3. Each subdirectory should contain PNG files (e.g., `images/0/` has `custom_0_0.png` to `custom_999_0.png`)
+4. The CSV should have columns: `prompt,image_file`
+5. Image files should be named like `custom_0_0.png`, `custom_1000_0.png`, etc.
 
 ### 4. Test the Game
 

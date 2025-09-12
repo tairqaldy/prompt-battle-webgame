@@ -526,16 +526,27 @@ function getRandomDatasetEntry() {
 // Image serving endpoint
 app.get('/api/images/:filename', (req, res) => {
   const filename = req.params.filename;
-  const imagePath = path.join(__dirname, 'dataset/images/0', filename);
+  
+  // Extract the number from filename (e.g., custom_2000_0.png -> 2000)
+  const match = filename.match(/custom_(\d+)_0\.png/);
+  if (!match) {
+    console.error(`[${new Date().toISOString()}] Invalid filename format: ${filename}`);
+    return res.status(400).json({ error: 'Invalid filename format' });
+  }
+  
+  const imageNumber = parseInt(match[1]);
+  const subdirectory = Math.floor(imageNumber / 1000); // Group by thousands
+  const imagePath = path.join(__dirname, 'dataset/images', subdirectory.toString(), filename);
   
   console.log(`[${new Date().toISOString()}] Serving image: ${filename}`);
+  console.log(`[${new Date().toISOString()}] Image number: ${imageNumber}, Subdirectory: ${subdirectory}`);
   console.log(`[${new Date().toISOString()}] Image path: ${imagePath}`);
   console.log(`[${new Date().toISOString()}] File exists: ${fs.existsSync(imagePath)}`);
   
   // Check if file exists
   if (!fs.existsSync(imagePath)) {
     console.error(`[${new Date().toISOString()}] Image not found: ${imagePath}`);
-    return res.status(404).json({ error: 'Image not found', filename, imagePath });
+    return res.status(404).json({ error: 'Image not found', filename, imagePath, subdirectory });
   }
   
   // Set appropriate headers

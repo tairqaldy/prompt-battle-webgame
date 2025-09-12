@@ -40,8 +40,8 @@ A real-time multiplayer web game where players compete to write the most accurat
 2. **Download the dataset**
    - Download the dataset from [Kaggle](https://www.kaggle.com/datasets/rturley/stable-diffusion-100k-custom-prompts-and-images/data)
    - Extract the CSV file to `backend/dataset/custom_prompts_df.csv`
-   - Extract the images folder to `backend/dataset/images/0/`
-   - The dataset contains 100,000+ image-prompt pairs for the game
+   - Extract the images folder to `backend/dataset/images/` (preserving the numbered subdirectories 0, 1, 2, etc.)
+   - The dataset contains 100,000+ image-prompt pairs organized in numbered folders
 
 3. **Install dependencies**
    ```bash
@@ -77,7 +77,11 @@ prompt-battle-webgame/
 │   ├── package.json           # Dependencies
 │   └── dataset/               # Dataset files (download separately)
 │       ├── custom_prompts_df.csv  # 100k+ image-prompt pairs
-│       └── images/0/          # Image files (100k+ PNG files)
+│       └── images/            # Image files organized in numbered folders
+│           ├── 0/             # Images 0-999
+│           ├── 1/             # Images 1000-1999
+│           ├── 2/             # Images 2000-2999
+│           └── ...            # More numbered folders
 ├── frontend/
 │   ├── index.html             # Single-page application
 │   ├── test-images.html       # Image loading test page

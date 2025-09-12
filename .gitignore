@@ -60,4 +60,5 @@ Gemfile.lock
 
 # Dataset images (large files - download separately)
 backend/dataset/images/
+backend/dataset/images/*/
 backend/dataset/*.csv
