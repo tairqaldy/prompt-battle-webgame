@@ -69,8 +69,8 @@ function validatePlayerName(name) {
   return name && typeof name === 'string' && name.trim().length >= 1 && name.trim().length <= 20;
 }
 
-function validatePromptText(text) {
-  return text && typeof text === 'string' && text.trim().length >= 1 && text.trim().length <= 400;
+function validatePromptText(text, characterLimit = 400) {
+  return text && typeof text === 'string' && text.trim().length >= 1 && text.trim().length <= characterLimit;
 }
 
 // WebSocket connection handling
@@ -210,7 +210,7 @@ io.on('connection', (socket) => {
 
   socket.on('start-game', async (data) => {
     try {
-      const { roomCode } = data;
+      const { roomCode, settings } = data;
       
       if (!gameRooms.has(roomCode)) {
         socket.emit('error', { message: 'Room not found' });
@@ -227,6 +227,18 @@ io.on('connection', (socket) => {
       if (roomState.gameState !== 'waiting') {
         socket.emit('error', { message: 'Game already in progress' });
         return;
+      }
+
+      // Update room settings with host's configuration
+      if (settings) {
+        roomState.gameSettings = {
+          rounds: settings.rounds || 3,
+          timeLimit: settings.timeLimit || 60,
+          maxPlayers: 8,
+          characterLimit: settings.characterLimit || 100
+        };
+        roomState.totalRounds = settings.rounds || 3;
+        console.log(`[${new Date().toISOString()}] Game settings updated for room ${roomCode}:`, roomState.gameSettings);
       }
 
       // Initialize game
@@ -273,12 +285,54 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('room-settings-changed', async (data) => {
+    try {
+      const { roomCode, settings } = data;
+      
+      if (!gameRooms.has(roomCode)) {
+        socket.emit('error', { message: 'Room not found' });
+        return;
+      }
+
+      const roomState = gameRooms.get(roomCode);
+      
+      // Only allow host to change settings
+      const player = await getPlayerById(socket.playerId);
+      if (!player || roomState.players[0]?.id !== player.id) {
+        socket.emit('error', { message: 'Only host can change room settings' });
+        return;
+      }
+
+      // Update room settings
+      if (settings) {
+        roomState.gameSettings = {
+          rounds: settings.rounds || roomState.gameSettings.rounds || 3,
+          timeLimit: settings.timeLimit || roomState.gameSettings.timeLimit || 60,
+          maxPlayers: 8,
+          characterLimit: settings.characterLimit || roomState.gameSettings.characterLimit || 100
+        };
+        roomState.totalRounds = settings.rounds || roomState.totalRounds || 3;
+        
+        console.log(`[${new Date().toISOString()}] Room settings changed for ${roomCode}:`, roomState.gameSettings);
+        
+        // Notify all players about settings change
+        io.to(roomCode).emit('room-settings-updated', {
+          settings: roomState.gameSettings
+        });
+      }
+
+    } catch (error) {
+      console.error('Error updating room settings:', error);
+      socket.emit('error', { message: 'Failed to update room settings' });
+    }
+  });
+
   socket.on('submit-prompt', async (data) => {
     try {
       const { roundId, promptText } = data;
       
-      if (!socket.playerId || !validatePromptText(promptText)) {
-        socket.emit('error', { message: 'Invalid prompt' });
+      if (!socket.playerId) {
+        socket.emit('error', { message: 'Invalid player' });
         return;
       }
 
@@ -289,11 +343,20 @@ io.on('connection', (socket) => {
         return;
       }
 
+      // Get room character limit
+      const roomCode = socket.roomCode;
+      const roomState = gameRooms.get(roomCode);
+      const characterLimit = roomState?.gameSettings?.characterLimit || 400;
+      
+      if (!validatePromptText(promptText, characterLimit)) {
+        socket.emit('error', { message: `Invalid prompt. Must be 1-${characterLimit} characters.` });
+        return;
+      }
+
       // Submit prompt to database
       await dbManager.submitPrompt(roundId, player.name, promptText.trim());
 
       // Notify all players in room
-      const roomCode = socket.roomCode;
       if (roomCode) {
         io.to(roomCode).emit('prompt-submitted', {
           playerName: player.name,

@@ -26,19 +26,6 @@
                     <label>Your Name:</label>
                     <input type="text" id="create-player-name" placeholder="Enter your name" maxlength="20">
                 </div>
-                <div class="form-group">
-                    <label>Room Settings:</label>
-                    <select id="rounds-setting">
-                        <option value="3">3 Rounds</option>
-                        <option value="5">5 Rounds</option>
-                        <option value="10">10 Rounds</option>
-                    </select>
-                    <select id="time-setting">
-                        <option value="60">60 seconds</option>
-                        <option value="90">90 seconds</option>
-                        <option value="120">120 seconds</option>
-                    </select>
-                </div>
                 <button class="btn btn-primary" onclick="createRoom()">Create Room</button>
                 <button class="btn btn-secondary" onclick="hideCreateRoom()">Cancel</button>
             </div>
@@ -81,25 +68,34 @@
                                 <select id="rounds-setting-room" onchange="updateRoomSettings()">
                                     <option value="1">1 Round</option>
                                     <option value="2">2 Rounds</option>
-                                    <option value="3">3 Rounds</option>
+                                    <option value="3" selected>3 Rounds</option>
                                     <option value="4">4 Rounds</option>
                                     <option value="5">5 Rounds</option>
+                                    <option value="7">7 Rounds</option>
+                                    <option value="10">10 Rounds</option>
                                 </select>
                             </div>
                             <div class="setting-group">
                                 <label>Time per Round:</label>
                                 <select id="time-setting-room" onchange="updateRoomSettings()">
-                                    <option value="60">60 seconds</option>
+                                    <option value="30">30 seconds</option>
+                                    <option value="45">45 seconds</option>
+                                    <option value="60" selected>60 seconds</option>
                                     <option value="90">90 seconds</option>
                                     <option value="120">120 seconds</option>
+                                    <option value="180">180 seconds</option>
                                 </select>
                             </div>
                             <div class="setting-group">
                                 <label>Character Limit:</label>
                                 <select id="char-limit-setting-room" onchange="updateRoomSettings()">
-                                    <option value="100">100 characters</option>
+                                    <option value="50">50 characters</option>
+                                    <option value="75">75 characters</option>
+                                    <option value="100" selected>100 characters</option>
                                     <option value="150">150 characters</option>
                                     <option value="200">200 characters</option>
+                                    <option value="300">300 characters</option>
+                                    <option value="400">400 characters</option>
                                 </select>
                             </div>
                         </div>

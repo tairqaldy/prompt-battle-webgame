@@ -113,6 +113,11 @@ class PromptBattleGame {
                     this.updateSubmissionStatus(data.playerName, false);
                 });
 
+                this.socket.on('room-settings-updated', (data) => {
+                    console.log('Room settings updated:', data.settings);
+                    this.applyRoomSettings(data.settings);
+                });
+
                 // Timeout after 5 seconds
                 setTimeout(() => {
                     if (!this.connected) {
@@ -184,8 +189,6 @@ class PromptBattleGame {
 
     async createRoom() {
         const playerName = document.getElementById('create-player-name').value.trim();
-        const rounds = document.getElementById('rounds-setting').value;
-        const timeLimit = document.getElementById('time-setting').value;
         
         if (!playerName) {
             this.showError('Please enter your name');
@@ -195,12 +198,12 @@ class PromptBattleGame {
         try {
             this.showLoading('Creating room...');
             
-            // Create room via API
+            // Create room via API with default settings (host will configure in room)
             const response = await fetch('/api/rooms', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    settings: { rounds: parseInt(rounds), timeLimit: parseInt(timeLimit) }
+                    settings: { rounds: 3, timeLimit: 60, characterLimit: 100 }
                 })
             });
             
@@ -316,18 +319,54 @@ class PromptBattleGame {
         const timeLimit = parseInt(document.getElementById('time-setting-room').value);
         const charLimit = parseInt(document.getElementById('char-limit-setting-room').value);
         
-        // Update character limit in game
-        document.getElementById('char-limit').textContent = charLimit;
-        document.getElementById('daily-char-limit').textContent = charLimit;
-        
         // Store settings for when game starts
         this.gameState.roomSettings = {
             rounds: rounds,
             timeLimit: timeLimit,
-            charLimit: charLimit
+            characterLimit: charLimit
         };
         
         console.log('Room settings updated:', this.gameState.roomSettings);
+        
+        // Apply settings immediately
+        this.applyRoomSettings(this.gameState.roomSettings);
+        
+        // Notify other players about settings change
+        if (this.socket && this.socket.connected) {
+            this.socket.emit('room-settings-changed', {
+                roomCode: this.gameState.roomCode,
+                settings: this.gameState.roomSettings
+            });
+        }
+    }
+
+    applyRoomSettings(settings) {
+        if (!settings) return;
+        
+        // Update character limit in game UI
+        const charLimitElements = document.querySelectorAll('#char-limit, #daily-char-limit');
+        charLimitElements.forEach(element => {
+            if (element) element.textContent = settings.characterLimit;
+        });
+        
+        // Update textarea maxlength
+        const textareas = document.querySelectorAll('#prompt-input, #daily-prompt-input');
+        textareas.forEach(textarea => {
+            if (textarea) textarea.maxLength = settings.characterLimit;
+        });
+        
+        // Update room settings dropdowns for non-host players to show current settings
+        if (!this.gameState.isHost) {
+            const roundsSelect = document.getElementById('rounds-setting-room');
+            const timeSelect = document.getElementById('time-setting-room');
+            const charSelect = document.getElementById('char-limit-setting-room');
+            
+            if (roundsSelect) roundsSelect.value = settings.rounds;
+            if (timeSelect) timeSelect.value = settings.timeLimit;
+            if (charSelect) charSelect.value = settings.characterLimit;
+        }
+        
+        console.log('Applied room settings:', settings);
     }
 
     copyRoomCode() {
@@ -387,7 +426,18 @@ class PromptBattleGame {
 
         try {
             this.showLoading('Starting game...');
-            this.socket.emit('start-game', { roomCode: this.gameState.roomCode });
+            
+            // Get current room settings
+            const settings = this.gameState.roomSettings || {
+                rounds: parseInt(document.getElementById('rounds-setting-room').value) || 3,
+                timeLimit: parseInt(document.getElementById('time-setting-room').value) || 60,
+                characterLimit: parseInt(document.getElementById('char-limit-setting-room').value) || 100
+            };
+            
+            this.socket.emit('start-game', { 
+                roomCode: this.gameState.roomCode,
+                settings: settings
+            });
         } catch (error) {
             console.error('Error starting game:', error);
             this.showError('Failed to start game. Please try again.');
