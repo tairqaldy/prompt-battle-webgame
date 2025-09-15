@@ -89,7 +89,10 @@ class PromptBattleGame {
                 this.socket.on('round-started', (data) => {
                     console.log('Round started:', data);
                     this.gameState.currentRound = data;
+                    this.gameState.currentDifficulty = data.difficulty || 'medium';
+                    this.gameState.currentDifficultyData = data.difficultyData || {};
                     this.startRound(data);
+                    this.updateDifficultyDisplay();
                 });
 
                 this.socket.on('round-ended', (data) => {
@@ -1279,6 +1282,44 @@ class PromptBattleGame {
             console.log('Player submitted:', playerName);
         } else {
             console.log('Player unsubmitted:', playerName);
+        }
+    }
+
+    updateDifficultyDisplay() {
+        const difficulty = this.gameState.currentDifficulty || 'medium';
+        const difficultyData = this.gameState.currentDifficultyData || {};
+        
+        // Update difficulty indicator in the game screen
+        const difficultyElement = document.getElementById('difficulty-indicator');
+        if (difficultyElement) {
+            difficultyElement.textContent = difficulty.toUpperCase();
+            difficultyElement.className = `difficulty-indicator difficulty-${difficulty}`;
+        }
+        
+        // Update difficulty info panel
+        const difficultyInfo = document.getElementById('difficulty-info');
+        if (difficultyInfo) {
+            const multipliers = {
+                easy: '1.0x',
+                medium: '1.2x',
+                hard: '1.5x'
+            };
+            
+            const multiplier = multipliers[difficulty] || '1.0x';
+            const bonusPercent = difficulty === 'easy' ? '0%' : 
+                                difficulty === 'medium' ? '20%' : '50%';
+            
+            difficultyInfo.innerHTML = `
+                <div class="difficulty-details">
+                    <span class="difficulty-label">Difficulty: <strong>${difficulty.toUpperCase()}</strong></span>
+                    <span class="difficulty-multiplier">Score Multiplier: ${multiplier}</span>
+                    <span class="difficulty-bonus">Bonus: +${bonusPercent}</span>
+                </div>
+                ${difficultyData.wordCount ? `<div class="difficulty-hint">Word Count: ${difficultyData.wordCount} words</div>` : ''}
+                ${difficultyData.hasComplexKeywords ? '<div class="difficulty-hint">💡 Contains complex keywords</div>' : ''}
+                ${difficultyData.hasArtStyle ? '<div class="difficulty-hint">🎨 Art style specified</div>' : ''}
+                ${difficultyData.hasAbstractConcepts ? '<div class="difficulty-hint">🧠 Abstract concepts present</div>' : ''}
+            `;
         }
     }
 }

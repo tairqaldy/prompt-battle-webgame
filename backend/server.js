@@ -487,7 +487,19 @@ async function startRound(roomCode) {
     const sourcePrompt = datasetEntry.prompt;
     const timeLimit = roomState.gameSettings.timeLimit;
     
-    console.log('Multiplayer image path:', imagePath);
+    // Extract difficulty information from dataset entry
+    const difficulty = datasetEntry.difficulty || 'medium';
+    const difficultyData = {
+      difficultyScore: parseFloat(datasetEntry.difficulty_score) || 2.0,
+      wordCount: parseInt(datasetEntry.word_count) || sourcePrompt.split(/\s+/).length,
+      namedEntities: parseInt(datasetEntry.named_entities) || 0,
+      hasComplexKeywords: datasetEntry.has_complex_keywords === 'true',
+      hasArtStyle: datasetEntry.has_art_style === 'true',
+      hasAbstractConcepts: datasetEntry.has_abstract_concepts === 'true',
+      isVerbose: datasetEntry.is_verbose === 'true'
+    };
+    
+    console.log(`Multiplayer round - Difficulty: ${difficulty}, Image: ${imagePath}`);
     
     // Create round in database
     await dbManager.createRound(roundId, roomCode, imagePath, sourcePrompt, timeLimit);
@@ -497,7 +509,9 @@ async function startRound(roomCode) {
       imagePath: imagePath,
       timeLimit: timeLimit,
       startTime: Date.now(),
-      roundNumber: roomState.roundCount
+      roundNumber: roomState.roundCount,
+      difficulty: difficulty,
+      difficultyData: difficultyData
     };
 
     // Notify all players
@@ -508,7 +522,9 @@ async function startRound(roomCode) {
       players: roomState.players,
       roundNumber: roomState.roundCount,
       totalRounds: roomState.totalRounds,
-      currentScores: roomState.scores
+      currentScores: roomState.scores,
+      difficulty: difficulty,
+      difficultyData: difficultyData
     });
 
     // Set timer to end round
@@ -562,8 +578,13 @@ async function endRound(roomCode, roundId) {
     
     for (const submission of submissions) {
       console.log(`[${new Date().toISOString()}] Scoring submission from ${submission.playerName}: "${submission.promptText}"`);
-      const scoringResult = scoring.scoreAttempt(round.sourcePrompt, submission.promptText);
-      console.log(`[${new Date().toISOString()}] Score: ${scoringResult.score}`);
+      
+      // Get difficulty information for this round
+      const difficultyInfo = round.difficulty || 'medium';
+      const difficultyData = round.difficultyData || {};
+      
+      const scoringResult = scoring.scoreAttempt(round.sourcePrompt, submission.promptText, difficultyInfo, difficultyData);
+      console.log(`[${new Date().toISOString()}] Score: ${scoringResult.score} (${difficultyInfo} difficulty, ${scoringResult.bonuses?.length || 0} bonuses)`);
       
       // Update cumulative scores
       if (roomState.scores[submission.playerName] !== undefined) {
@@ -654,18 +675,27 @@ const csv = require('csv-parser');
 
 // Load dataset
 let dataset = [];
+let datasetWithDifficulty = [];
 let datasetLoaded = false;
 
 async function loadDataset() {
   return new Promise((resolve, reject) => {
     const results = [];
-    fs.createReadStream(path.join(__dirname, 'dataset/custom_prompts_df.csv'))
+    
+    // Try to load dataset with difficulty information first
+    const difficultyPath = path.join(__dirname, 'dataset/custom_prompts_with_difficulty.csv');
+    const originalPath = path.join(__dirname, 'dataset/custom_prompts_df.csv');
+    
+    const filePath = fs.existsSync(difficultyPath) ? difficultyPath : originalPath;
+    
+    fs.createReadStream(filePath)
       .pipe(csv())
       .on('data', (data) => results.push(data))
       .on('end', () => {
         dataset = results;
+        datasetWithDifficulty = results;
         datasetLoaded = true;
-        console.log(`[${new Date().toISOString()}] Loaded ${dataset.length} dataset entries`);
+        console.log(`[${new Date().toISOString()}] Loaded ${dataset.length} dataset entries${filePath === difficultyPath ? ' with difficulty information' : ''}`);
         resolve();
       })
       .on('error', reject);

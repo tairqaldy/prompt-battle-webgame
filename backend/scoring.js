@@ -171,12 +171,14 @@ function calculateSemanticScore(original, attempt) {
 }
 
 /**
- * Score a player's attempt against the original prompt
+ * Score a player's attempt against the original prompt with difficulty-based multipliers
  * @param {string} original - The original prompt used to generate the image
  * @param {string} attempt - The player's attempt prompt
- * @returns {object} Score result with score, matched, and missed components
+ * @param {string} difficulty - Difficulty level: 'easy', 'medium', or 'hard'
+ * @param {object} difficultyData - Additional difficulty information
+ * @returns {object} Enhanced score result with difficulty multipliers
  */
-function scoreAttempt(original, attempt) {
+function scoreAttempt(original, attempt, difficulty = 'medium', difficultyData = {}) {
   if (!original || !attempt) {
     throw new Error('Both original and attempt prompts are required');
   }
@@ -184,32 +186,225 @@ function scoreAttempt(original, attempt) {
   if (original.trim().length === 0 || attempt.trim().length === 0) {
     return {
       score: 0,
+      baseScore: 0,
+      difficultyMultiplier: 1,
+      finalScore: 0,
       matched: [],
       missed: extractWords(original),
-      explanation: 'Empty prompt submitted'
+      explanation: 'Empty prompt submitted',
+      difficulty: difficulty,
+      bonuses: []
     };
   }
 
   const overlap = calculateWordOverlap(original, attempt);
-  const score = calculateSemanticScore(original, attempt);
+  const baseScore = calculateSemanticScore(original, attempt);
+  
+  // Calculate difficulty-based multiplier
+  const difficultyMultipliers = {
+    easy: 1.0,      // Standard scoring
+    medium: 1.2,    // 20% bonus for medium difficulty
+    hard: 1.5       // 50% bonus for hard difficulty
+  };
+  
+  const multiplier = difficultyMultipliers[difficulty] || 1.0;
+  
+  // Calculate additional bonuses
+  const bonuses = calculateBonuses(original, attempt, overlap, difficultyData);
+  
+  // Apply bonuses to base score
+  let enhancedScore = baseScore;
+  bonuses.forEach(bonus => {
+    enhancedScore += bonus.points;
+  });
+  
+  // Apply difficulty multiplier
+  const finalScore = Math.round(enhancedScore * multiplier);
   
   return {
-    score: score,
+    score: finalScore,
+    baseScore: baseScore,
+    difficultyMultiplier: multiplier,
+    finalScore: finalScore,
     matched: overlap.matched,
     missed: overlap.missed,
     extra: overlap.extra,
-    explanation: generateExplanation(score, overlap),
+    explanation: generateEnhancedExplanation(finalScore, overlap, difficulty, bonuses, multiplier),
     details: {
       originalWordCount: overlap.originalCount,
       attemptWordCount: overlap.attemptCount,
       matchedWordCount: overlap.matchedCount,
-      extraWordCount: overlap.extra.length
-    }
+      extraWordCount: overlap.extra.length,
+      difficulty: difficulty,
+      bonuses: bonuses
+    },
+    difficulty: difficulty,
+    bonuses: bonuses
   };
 }
 
 /**
- * Generate human-readable explanation of the score
+ * Calculate additional scoring bonuses
+ * @param {string} original - Original prompt
+ * @param {string} attempt - Player's attempt
+ * @param {object} overlap - Word overlap analysis
+ * @param {object} difficultyData - Difficulty information
+ * @returns {Array} Array of bonus objects
+ */
+function calculateBonuses(original, attempt, overlap, difficultyData) {
+  const bonuses = [];
+  
+  // 1. Conciseness Bonus - Reward for being concise while maintaining accuracy
+  const originalWords = original.split(/\s+/).length;
+  const attemptWords = attempt.split(/\s+/).length;
+  const wordRatio = attemptWords / originalWords;
+  
+  if (wordRatio <= 0.8 && overlap.matchedCount / overlap.originalCount >= 0.7) {
+    bonuses.push({
+      type: 'conciseness',
+      description: 'Conciseness Bonus',
+      points: 5,
+      details: `Used ${Math.round((1 - wordRatio) * 100)}% fewer words while maintaining accuracy`
+    });
+  }
+  
+  // 2. Creativity Bonus - Reward for creative but valid descriptions
+  const creativeWords = ['beautiful', 'stunning', 'dramatic', 'vibrant', 'elegant', 'majestic', 'serene', 'dynamic'];
+  const hasCreativeWords = creativeWords.some(word => attempt.toLowerCase().includes(word));
+  
+  if (hasCreativeWords && overlap.matchedCount >= 3) {
+    bonuses.push({
+      type: 'creativity',
+      description: 'Creativity Bonus',
+      points: 3,
+      details: 'Added creative descriptive language'
+    });
+  }
+  
+  // 3. Technical Accuracy Bonus - Reward for technical terms
+  const technicalTerms = ['3D', 'render', 'DSLR', 'fisheye', 'vector', 'claymation', 'installation', 'photograph', 'painting'];
+  const technicalMatches = technicalTerms.filter(term => 
+    attempt.toLowerCase().includes(term.toLowerCase()) && 
+    original.toLowerCase().includes(term.toLowerCase())
+  );
+  
+  if (technicalMatches.length > 0) {
+    bonuses.push({
+      type: 'technical',
+      description: 'Technical Accuracy Bonus',
+      points: technicalMatches.length * 2,
+      details: `Correctly identified technical terms: ${technicalMatches.join(', ')}`
+    });
+  }
+  
+  // 4. Style Recognition Bonus - Reward for identifying art styles
+  const artStyles = ['painting', 'drawing', 'photograph', '3D render', 'vector', 'claymation', 'oil', 'watercolor', 'sketch'];
+  const styleMatches = artStyles.filter(style => 
+    attempt.toLowerCase().includes(style.toLowerCase()) && 
+    original.toLowerCase().includes(style.toLowerCase())
+  );
+  
+  if (styleMatches.length > 0) {
+    bonuses.push({
+      type: 'style',
+      description: 'Style Recognition Bonus',
+      points: styleMatches.length * 2,
+      details: `Correctly identified art styles: ${styleMatches.join(', ')}`
+    });
+  }
+  
+  // 5. Perfect Match Bonus
+  if (overlap.matchedCount === overlap.originalCount && overlap.extra.length === 0) {
+    bonuses.push({
+      type: 'perfect',
+      description: 'Perfect Match Bonus',
+      points: 10,
+      details: 'Perfect word-for-word match with no extra words'
+    });
+  }
+  
+  return bonuses;
+}
+
+/**
+ * Generate enhanced explanation with difficulty and bonus information
+ * @param {number} score - Final calculated score
+ * @param {object} overlap - Word overlap analysis
+ * @param {string} difficulty - Difficulty level
+ * @param {Array} bonuses - Array of bonus objects
+ * @param {number} multiplier - Difficulty multiplier applied
+ * @returns {string} Enhanced explanation text
+ */
+function generateEnhancedExplanation(score, overlap, difficulty, bonuses, multiplier) {
+  const matchedCount = overlap.matchedCount;
+  const totalOriginal = overlap.originalCount;
+  const missedCount = overlap.missed.length;
+  const extraCount = overlap.extra.length;
+  
+  let explanation = `🎯 **Difficulty Level: ${difficulty.toUpperCase()}** (${Math.round((multiplier - 1) * 100)}% bonus)\n\n`;
+  explanation += `You matched ${matchedCount} out of ${totalOriginal} key words from the original prompt. `;
+  
+  // Base score feedback
+  const baseScore = Math.round(score / multiplier);
+  if (baseScore >= 90) {
+    explanation += "🏆 Excellent! You captured almost everything important. This is a very accurate description!";
+  } else if (baseScore >= 80) {
+    explanation += "🎯 Great job! You got most of the key concepts and details.";
+  } else if (baseScore >= 70) {
+    explanation += "👍 Good attempt! You captured the main elements well.";
+  } else if (baseScore >= 60) {
+    explanation += "👌 Not bad! You got some key words but missed others.";
+  } else if (baseScore >= 40) {
+    explanation += "🤔 Decent effort, but you missed several important elements.";
+  } else if (baseScore >= 20) {
+    explanation += "📝 Try to focus more on the main subjects, actions, and visual details in the image.";
+  } else {
+    explanation += "🔄 This doesn't seem to match the image well. Look more carefully at what you see.";
+  }
+  
+  // Add bonus information
+  if (bonuses.length > 0) {
+    explanation += "\n\n🎁 **Bonuses Earned:**";
+    bonuses.forEach(bonus => {
+      explanation += `\n• ${bonus.description}: +${bonus.points} points - ${bonus.details}`;
+    });
+  }
+  
+  // Show missed and matched words
+  if (missedCount > 0) {
+    const importantMissed = overlap.missed.slice(0, 5);
+    explanation += `\n\n❌ **You missed:** ${importantMissed.join(', ')}`;
+    if (missedCount > 5) explanation += ` and ${missedCount - 5} more.`;
+  }
+  
+  if (matchedCount > 0) {
+    const importantMatched = overlap.matched.slice(0, 5);
+    explanation += `\n\n✅ **You correctly included:** ${importantMatched.join(', ')}`;
+    if (matchedCount > 5) explanation += ` and ${matchedCount - 5} more.`;
+  }
+  
+  if (extraCount > 0) {
+    explanation += `\n\nℹ️ **Extra words:** ${extraCount} words not in the original.`;
+  }
+  
+  // Difficulty-specific tips
+  if (difficulty === 'hard') {
+    explanation += `\n\n💡 **Hard Level Tips:**
+    • Focus on technical terms and art styles
+    • Pay attention to specific details and named entities
+    • Complex prompts require more precision`;
+  } else if (difficulty === 'medium') {
+    explanation += `\n\n💡 **Medium Level Tips:**
+    • Balance accuracy with creativity
+    • Include both main subjects and artistic style
+    • Look for specific visual elements`;
+  }
+  
+  return explanation;
+}
+
+/**
+ * Generate human-readable explanation of the score (legacy function for backward compatibility)
  * @param {number} score - Calculated score
  * @param {object} overlap - Word overlap analysis
  * @returns {string} Explanation text
