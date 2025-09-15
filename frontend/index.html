@@ -10,14 +10,14 @@
     <div class="container">
         <!-- Main Lobby Screen -->
         <div id="lobby-screen" class="screen active">
-            <h1>Prompt Battle</h1>
-            <p class="subtitle">Multiplayer AI Prompt Competition</p>
+            <h1>🎯 Prompt Battle</h1>
+            <p class="subtitle">Multiplayer AI Prompt Reverse Engineering Competition</p>
             
             <div class="main-menu">
-                <button class="menu-btn" onclick="startDailyChallenge()">Daily Challenge</button>
-                <button class="menu-btn" onclick="showCreateRoom()">Create Room</button>
-                <button class="menu-btn" onclick="showJoinRoom()">Join Room</button>
-                <button class="menu-btn" onclick="showHowToPlay()">How To Play</button>
+                <button class="menu-btn" onclick="startDailyChallenge()">📅 Daily Challenge</button>
+                <button class="menu-btn" onclick="showCreateRoom()">🏠 Create Room</button>
+                <button class="menu-btn" onclick="showJoinRoom()">🚪 Join Room</button>
+                <button class="menu-btn" onclick="showHowToPlay()">❓ How To Play</button>
             </div>
 
             <div id="create-room-section" class="form-section" style="display: none;">
@@ -155,6 +155,7 @@
                     </div>
                     <textarea
                         id="prompt-input"
+                        class="prompt-input"
                         placeholder="Describe what you see in the image..."
                         maxlength="100"
                         oninput="updateCharCount()"
@@ -267,6 +268,7 @@
                     </div>
                     <textarea
                         id="daily-prompt-input"
+                        class="prompt-input"
                         placeholder="Describe what you see in the image..."
                         maxlength="100"
                         oninput="updateDailyCharCount()"
