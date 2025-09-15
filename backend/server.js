@@ -622,7 +622,7 @@ function getRandomDatasetEntry() {
 app.get('/api/images/:filename', (req, res) => {
   const filename = req.params.filename;
   
-  // Extract the number from filename (e.g., custom_2000_0.png -> 2000)
+  // Extract the number from filename (e.g., custom_1998_0.png -> 1998)
   const match = filename.match(/custom_(\d+)_0\.png/);
   if (!match) {
     console.error(`[${new Date().toISOString()}] Invalid filename format: ${filename}`);
@@ -630,7 +630,14 @@ app.get('/api/images/:filename', (req, res) => {
   }
   
   const imageNumber = parseInt(match[1]);
-  const subdirectory = Math.floor(imageNumber / 1000); // Group by thousands
+  
+  // Validate image number is within our dataset range (0-1998)
+  if (imageNumber < 0 || imageNumber > 1998) {
+    console.error(`[${new Date().toISOString()}] Image number ${imageNumber} is out of valid range (0-1998)`);
+    return res.status(404).json({ error: 'Image not found - out of dataset range', filename, validRange: '0-1998' });
+  }
+  
+  const subdirectory = Math.floor(imageNumber / 1000); // Group by thousands (0-999 -> 0, 1000-1998 -> 1)
   const imagePath = path.join(__dirname, 'dataset/images', subdirectory.toString(), filename);
   
   console.log(`[${new Date().toISOString()}] Serving image: ${filename}`);
