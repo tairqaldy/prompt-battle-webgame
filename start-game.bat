@@ -14,18 +14,20 @@ echo.
 echo [1] Local only (localhost:3000)
 echo [2] Local + ngrok (public access)
 echo [3] ngrok only (server already running)
-echo [4] Kill all Node processes
-echo [5] Show network info
+echo [4] Setup ngrok authtoken
+echo [5] Kill all Node processes
+echo [6] Show network info
 echo [0] Exit
 echo.
 
-set /p choice="Enter your choice (0-5): "
+set /p choice="Enter your choice (0-6): "
 
 if "%choice%"=="1" goto local
 if "%choice%"=="2" goto ngrok
 if "%choice%"=="3" goto ngrok-only
-if "%choice%"=="4" goto kill
-if "%choice%"=="5" goto network
+if "%choice%"=="4" goto setup-ngrok
+if "%choice%"=="5" goto kill
+if "%choice%"=="6" goto network
 if "%choice%"=="0" goto exit
 goto menu
 
@@ -64,6 +66,23 @@ echo.
 start "ngrok Tunnel" cmd /k "ngrok.exe http 3000"
 echo ✅ ngrok tunnel starting...
 echo 📱 Check the ngrok window for your public URL!
+echo.
+pause
+goto menu
+
+:setup-ngrok
+echo.
+echo 🔑 Setting up ngrok authtoken...
+echo.
+echo 1. Go to: https://dashboard.ngrok.com/get-started/your-authtoken
+echo 2. Copy your authtoken
+echo 3. Paste it below
+echo.
+set /p authtoken="Enter your ngrok authtoken: "
+ngrok.exe config add-authtoken %authtoken%
+echo.
+echo ✅ ngrok authtoken configured!
+echo You can now use options 2 and 3 for public access.
 echo.
 pause
 goto menu
