@@ -16,7 +16,8 @@ class PromptBattleGame {
             players: [],
             currentRound: null,
             roundData: null,
-            results: null
+            results: null,
+            currentTimer: null // Store current timer ID for cleanup
         };
         
         this.dailyChallenge = {
@@ -97,12 +98,14 @@ class PromptBattleGame {
 
                 this.socket.on('round-ended', (data) => {
                     console.log('Round ended:', data);
+                    this.clearCurrentTimer(); // Clear timer when round ends
                     this.showResults(data);
                 });
 
                 this.socket.on('game-completed', (data) => {
                     console.log('Game completed:', data);
                     console.log('Final rankings:', data.finalRankings);
+                    this.clearCurrentTimer(); // Clear timer when game ends
                     this.showFinalResults(data);
                 });
 
@@ -585,18 +588,34 @@ class PromptBattleGame {
     }
 
     startTimer(seconds) {
+        // Clear any existing timer first
+        this.clearCurrentTimer();
+        
         let timeLeft = seconds;
         this.updateTimerDisplay(timeLeft);
         
-        const timer = setInterval(() => {
+        this.gameState.currentTimer = setInterval(() => {
             timeLeft--;
             this.updateTimerDisplay(timeLeft);
             
             if (timeLeft <= 0) {
-                clearInterval(timer);
+                this.clearCurrentTimer();
                 this.handleTimeUp();
             }
         }, 1000);
+        
+        console.log('Timer started:', seconds, 'seconds');
+    }
+
+    clearCurrentTimer() {
+        if (this.gameState.currentTimer) {
+            clearInterval(this.gameState.currentTimer);
+            this.gameState.currentTimer = null;
+            console.log('Timer cleared');
+        }
+        
+        // Reset timer display to 00:00
+        this.updateTimerDisplay(0);
     }
 
     updateTimerDisplay(seconds) {
@@ -1150,6 +1169,7 @@ class PromptBattleGame {
 
     // Utility Functions
     resetGameState() {
+        this.clearCurrentTimer(); // Clear any active timer when resetting game state
         this.gameState = {
             roomCode: null,
             playerId: null,
@@ -1158,7 +1178,8 @@ class PromptBattleGame {
             players: [],
             currentRound: null,
             roundData: null,
-            results: null
+            results: null,
+            currentTimer: null
         };
     }
 

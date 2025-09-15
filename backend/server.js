@@ -474,6 +474,12 @@ async function startRound(roomCode) {
     const roomState = gameRooms.get(roomCode);
     if (!roomState) return;
 
+    // Safety check: ensure no active round is running
+    if (roomState.gameState === 'playing' && roomState.currentRound && !roomState.currentRound.ended) {
+      console.log(`[${new Date().toISOString()}] Round already in progress for room ${roomCode}, clearing previous round`);
+      await endRound(roomCode, roomState.currentRound.id);
+    }
+
     roomState.gameState = 'playing';
     roomState.roundCount++;
     
