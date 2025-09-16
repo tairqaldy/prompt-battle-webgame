@@ -171,12 +171,12 @@ function calculateSemanticScore(original, attempt) {
 }
 
 /**
- * Score a player's attempt against the original prompt with difficulty-based multipliers
+ * Score a player's attempt against the original prompt (pure accuracy score)
  * @param {string} original - The original prompt used to generate the image
  * @param {string} attempt - The player's attempt prompt
  * @param {string} difficulty - Difficulty level: 'easy', 'medium', or 'hard'
  * @param {object} difficultyData - Additional difficulty information
- * @returns {object} Enhanced score result with difficulty multipliers
+ * @returns {object} Score result with pure accuracy and difficulty info for leaderboard
  */
 function scoreAttempt(original, attempt, difficulty = 'medium', difficultyData = {}) {
   if (!original || !attempt) {
@@ -185,10 +185,9 @@ function scoreAttempt(original, attempt, difficulty = 'medium', difficultyData =
 
   if (original.trim().length === 0 || attempt.trim().length === 0) {
     return {
-      score: 0,
-      baseScore: 0,
+      accuracyScore: 0,
+      leaderboardPoints: 0,
       difficultyMultiplier: 1,
-      finalScore: 0,
       matched: [],
       missed: extractWords(original),
       explanation: 'Empty prompt submitted',
@@ -200,7 +199,7 @@ function scoreAttempt(original, attempt, difficulty = 'medium', difficultyData =
   const overlap = calculateWordOverlap(original, attempt);
   const baseScore = calculateSemanticScore(original, attempt);
   
-  // Calculate difficulty-based multiplier
+  // Calculate difficulty-based multiplier for leaderboard points
   const difficultyMultipliers = {
     easy: 1.0,      // Standard scoring
     medium: 1.2,    // 20% bonus for medium difficulty
@@ -212,24 +211,23 @@ function scoreAttempt(original, attempt, difficulty = 'medium', difficultyData =
   // Calculate additional bonuses
   const bonuses = calculateBonuses(original, attempt, overlap, difficultyData);
   
-  // Apply bonuses to base score
-  let enhancedScore = baseScore;
+  // Apply bonuses to base score for pure accuracy
+  let accuracyScore = baseScore;
   bonuses.forEach(bonus => {
-    enhancedScore += bonus.points;
+    accuracyScore += bonus.points;
   });
   
-  // Apply difficulty multiplier
-  const finalScore = Math.round(enhancedScore * multiplier);
+  // Calculate leaderboard points (accuracy score * difficulty multiplier)
+  const leaderboardPoints = Math.round(accuracyScore * multiplier);
   
   return {
-    score: finalScore,
-    baseScore: baseScore,
+    accuracyScore: Math.round(accuracyScore),
+    leaderboardPoints: leaderboardPoints,
     difficultyMultiplier: multiplier,
-    finalScore: finalScore,
     matched: overlap.matched,
     missed: overlap.missed,
     extra: overlap.extra,
-    explanation: generateEnhancedExplanation(finalScore, overlap, difficulty, bonuses, multiplier),
+    explanation: generateEnhancedExplanation(accuracyScore, overlap, difficulty, bonuses, multiplier),
     details: {
       originalWordCount: overlap.originalCount,
       attemptWordCount: overlap.attemptCount,
@@ -328,35 +326,35 @@ function calculateBonuses(original, attempt, overlap, difficultyData) {
 
 /**
  * Generate enhanced explanation with difficulty and bonus information
- * @param {number} score - Final calculated score
+ * @param {number} accuracyScore - Pure accuracy score (0-100)
  * @param {object} overlap - Word overlap analysis
  * @param {string} difficulty - Difficulty level
  * @param {Array} bonuses - Array of bonus objects
- * @param {number} multiplier - Difficulty multiplier applied
+ * @param {number} multiplier - Difficulty multiplier for leaderboard points
  * @returns {string} Enhanced explanation text
  */
-function generateEnhancedExplanation(score, overlap, difficulty, bonuses, multiplier) {
+function generateEnhancedExplanation(accuracyScore, overlap, difficulty, bonuses, multiplier) {
   const matchedCount = overlap.matchedCount;
   const totalOriginal = overlap.originalCount;
   const missedCount = overlap.missed.length;
   const extraCount = overlap.extra.length;
   
-  let explanation = `🎯 **Difficulty Level: ${difficulty.toUpperCase()}** (${Math.round((multiplier - 1) * 100)}% bonus)\n\n`;
+  let explanation = `🎯 **Difficulty Level: ${difficulty.toUpperCase()}** (${Math.round((multiplier - 1) * 100)}% leaderboard bonus)\n\n`;
+  explanation += `**Accuracy Score: ${Math.round(accuracyScore)}/100**\n\n`;
   explanation += `You matched ${matchedCount} out of ${totalOriginal} key words from the original prompt. `;
   
-  // Base score feedback
-  const baseScore = Math.round(score / multiplier);
-  if (baseScore >= 90) {
+  // Accuracy score feedback
+  if (accuracyScore >= 90) {
     explanation += "🏆 Excellent! You captured almost everything important. This is a very accurate description!";
-  } else if (baseScore >= 80) {
+  } else if (accuracyScore >= 80) {
     explanation += "🎯 Great job! You got most of the key concepts and details.";
-  } else if (baseScore >= 70) {
+  } else if (accuracyScore >= 70) {
     explanation += "👍 Good attempt! You captured the main elements well.";
-  } else if (baseScore >= 60) {
+  } else if (accuracyScore >= 60) {
     explanation += "👌 Not bad! You got some key words but missed others.";
-  } else if (baseScore >= 40) {
+  } else if (accuracyScore >= 40) {
     explanation += "🤔 Decent effort, but you missed several important elements.";
-  } else if (baseScore >= 20) {
+  } else if (accuracyScore >= 20) {
     explanation += "📝 Try to focus more on the main subjects, actions, and visual details in the image.";
   } else {
     explanation += "🔄 This doesn't seem to match the image well. Look more carefully at what you see.";
@@ -392,12 +390,19 @@ function generateEnhancedExplanation(score, overlap, difficulty, bonuses, multip
     explanation += `\n\n💡 **Hard Level Tips:**
     • Focus on technical terms and art styles
     • Pay attention to specific details and named entities
-    • Complex prompts require more precision`;
+    • Complex prompts require more precision
+    • Higher difficulty = more leaderboard points for same accuracy!`;
   } else if (difficulty === 'medium') {
     explanation += `\n\n💡 **Medium Level Tips:**
     • Balance accuracy with creativity
     • Include both main subjects and artistic style
-    • Look for specific visual elements`;
+    • Look for specific visual elements
+    • Medium difficulty gives 20% bonus leaderboard points!`;
+  } else {
+    explanation += `\n\n💡 **Easy Level Tips:**
+    • Focus on the main subjects and basic details
+    • Simple prompts are easier to match accurately
+    • Standard leaderboard points (no bonus)`;
   }
   
   return explanation;
@@ -472,7 +477,7 @@ function getScoringStats(results) {
     return { average: 0, highest: 0, lowest: 0, count: 0 };
   }
   
-  const scores = results.map(r => r.score || 0);
+  const scores = results.map(r => r.leaderboardPoints || 0);
   const sum = scores.reduce((a, b) => a + b, 0);
   
   return {

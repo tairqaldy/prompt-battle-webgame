@@ -102,6 +102,14 @@ class PromptBattleGame {
                     this.showResults(data);
                 });
 
+                this.socket.on('game-started', (data) => {
+                    console.log('Game started:', data);
+                    // Update leaderboard with reset scores
+                    if (data.scores) {
+                        this.updateGameLeaderboard(data.scores);
+                    }
+                });
+
                 this.socket.on('game-completed', (data) => {
                     console.log('Game completed:', data);
                     console.log('Final rankings:', data.finalRankings);
@@ -720,17 +728,28 @@ class PromptBattleGame {
         this.gameState.results = data;
         this.showScreen('results');
         
+        // Update round info
+        document.getElementById('round-number').textContent = `Round ${data.roundNumber || 1}`;
+        document.getElementById('total-rounds').textContent = `of ${data.totalRounds || 3}`;
+        
         // Update player performance
         const playerResult = data.results.find(r => r.playerName === this.gameState.playerName);
         if (playerResult) {
-            document.getElementById('player-score').textContent = playerResult.score;
+            document.getElementById('player-score').textContent = playerResult.accuracyScore;
+            document.getElementById('player-accuracy').textContent = playerResult.accuracyScore + '%';
             document.getElementById('player-prompt').textContent = playerResult.promptText;
             document.getElementById('original-prompt').textContent = data.sourcePrompt;
             
-            // Find player rank
-            const sortedResults = [...data.results].sort((a, b) => b.score - a.score);
+            // Update leaderboard points
+            if (playerResult.leaderboardPoints) {
+                document.getElementById('player-leaderboard-points').textContent = playerResult.leaderboardPoints;
+            }
+            
+            // Find player rank (based on leaderboard points)
+            const sortedResults = [...data.results].sort((a, b) => b.leaderboardPoints - a.leaderboardPoints);
             const playerRank = sortedResults.findIndex(r => r.playerName === this.gameState.playerName) + 1;
             document.getElementById('player-rank').textContent = `${playerRank}${this.getOrdinalSuffix(playerRank)}`;
+            
         }
         
         // Update leaderboard with current scores
@@ -767,7 +786,7 @@ class PromptBattleGame {
         const leaderboard = document.getElementById('round-leaderboard');
         leaderboard.innerHTML = '';
         
-        const sortedResults = [...results].sort((a, b) => b.score - a.score);
+        const sortedResults = [...results].sort((a, b) => b.leaderboardPoints - a.leaderboardPoints);
         
         sortedResults.forEach((result, index) => {
             const leaderboardItem = document.createElement('div');
@@ -775,7 +794,8 @@ class PromptBattleGame {
             leaderboardItem.innerHTML = `
                 <span class="rank">${index + 1}${this.getOrdinalSuffix(index + 1)}</span>
                 <span class="player-name">${result.playerName}</span>
-                <span class="score">${result.score}%</span>
+                <span class="score">${result.accuracyScore}%</span>
+                <span class="leaderboard-points">(${result.leaderboardPoints}pts)</span>
             `;
             leaderboard.appendChild(leaderboardItem);
         });
@@ -1097,8 +1117,8 @@ class PromptBattleGame {
             
             if (result.success) {
                 this.dailyChallenge.attempts++;
-                if (result.score > this.dailyChallenge.bestScore) {
-                    this.dailyChallenge.bestScore = result.score;
+                if (result.accuracyScore > this.dailyChallenge.bestScore) {
+                    this.dailyChallenge.bestScore = result.accuracyScore;
                 }
                 
                 this.showDailyResults(result, promptText);
@@ -1114,25 +1134,31 @@ class PromptBattleGame {
     showDailyResults(result, promptText) {
         this.showScreen('daily-results');
         
-        // Update player performance
-        document.getElementById('daily-player-score').textContent = result.score;
-        document.getElementById('daily-accuracy').textContent = result.score + '%';
+        // Update main score display
+        document.getElementById('daily-player-score').textContent = result.accuracyScore;
+        document.getElementById('daily-accuracy').textContent = result.accuracyScore + '%';
+        document.getElementById('daily-accuracy-detail').textContent = result.accuracyScore + '%';
+        
+        // Update difficulty if available
+        if (result.difficulty) {
+            document.getElementById('daily-difficulty').textContent = result.difficulty.charAt(0).toUpperCase() + result.difficulty.slice(1);
+        }
+        
+        // Update prompt comparison
         document.getElementById('daily-player-prompt').textContent = promptText;
         document.getElementById('daily-original-prompt').textContent = this.dailyChallenge.sourcePrompt;
         
-        // Add detailed scoring feedback
-        this.showScoringFeedback(result);
         
         // Update daily stats
         this.loadDailyStats();
     }
 
-    showScoringFeedback(result) {
+    showScoringFeedback(result, targetId = 'scoring-feedback') {
         // Create or update scoring feedback section
-        let feedbackDiv = document.getElementById('scoring-feedback');
+        let feedbackDiv = document.getElementById(targetId);
         if (!feedbackDiv) {
             feedbackDiv = document.createElement('div');
-            feedbackDiv.id = 'scoring-feedback';
+            feedbackDiv.id = targetId;
             feedbackDiv.style.cssText = `
                 margin-top: 1rem;
                 padding: 1rem;
@@ -1333,8 +1359,8 @@ class PromptBattleGame {
             difficultyInfo.innerHTML = `
                 <div class="difficulty-details">
                     <span class="difficulty-label">Difficulty: <strong>${difficulty.toUpperCase()}</strong></span>
-                    <span class="difficulty-multiplier">Score Multiplier: ${multiplier}</span>
-                    <span class="difficulty-bonus">Bonus: +${bonusPercent}</span>
+                    <span class="difficulty-multiplier">Leaderboard Multiplier: ${multiplier}x</span>
+                    <span class="difficulty-bonus">Bonus: +${bonusPercent}%</span>
                 </div>
                 ${difficultyData.wordCount ? `<div class="difficulty-hint">Word Count: ${difficultyData.wordCount} words</div>` : ''}
                 ${difficultyData.hasComplexKeywords ? '<div class="difficulty-hint">💡 Contains complex keywords</div>' : ''}

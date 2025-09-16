@@ -184,38 +184,62 @@
 
         <!-- Results Screen -->
         <div id="results-screen" class="screen">
-            <h1>Round Results</h1>
+            <div class="results-header">
+                <h1>🏆 Round Results</h1>
+                <div class="round-info">
+                    <span id="round-number">Round 1</span>
+                    <span class="separator">•</span>
+                    <span id="total-rounds">of 3</span>
+                </div>
+            </div>
             
-            <div class="results-layout">
-                <div class="player-performance">
-                    <h3>Your Performance</h3>
-                    <div class="performance-stats">
-                        <div class="stat-item">
-                            <span>Your Score:</span>
-                            <span id="player-score">0</span>
-                        </div>
-                        <div class="stat-item">
-                            <span>Rank:</span>
-                            <span id="player-rank">-</span>
-                        </div>
+            <div class="results-container">
+                <!-- Score Overview -->
+                <div class="score-overview">
+                    <div class="score-card main-score">
+                        <div class="score-label">Your Score</div>
+                        <div class="score-value" id="player-score">0</div>
+                        <div class="score-percentage" id="player-accuracy">0%</div>
                     </div>
-                    
-                    <div class="prompt-comparison">
-                        <div class="prompt-box">
-                            <label>Your Prompt:</label>
-                            <div id="player-prompt">Loading...</div>
+                    <div class="score-details">
+                        <div class="detail-item">
+                            <span class="detail-label">Rank</span>
+                            <span class="detail-value" id="player-rank">-</span>
                         </div>
-                        <div class="prompt-box">
-                            <label>Original Prompt:</label>
-                            <div id="original-prompt">Loading...</div>
+                        <div class="detail-item">
+                            <span class="detail-label">Leaderboard Points</span>
+                            <span class="detail-value" id="player-leaderboard-points">0</span>
                         </div>
                     </div>
                 </div>
 
-                <div class="round-leaderboard">
-                    <h3>Round Leaderboard</h3>
+                <!-- Prompt Comparison -->
+                <div class="prompt-comparison-section">
+                    <h3>📝 Prompt Analysis</h3>
+                    <div class="prompt-comparison-grid">
+                        <div class="prompt-card your-prompt">
+                            <div class="prompt-header">
+                                <span class="prompt-icon">✍️</span>
+                                <span class="prompt-title">Your Prompt</span>
+                            </div>
+                            <div class="prompt-content" id="player-prompt">Loading...</div>
+                        </div>
+                        <div class="prompt-card original-prompt">
+                            <div class="prompt-header">
+                                <span class="prompt-icon">🎯</span>
+                                <span class="prompt-title">Original Prompt</span>
+                            </div>
+                            <div class="prompt-content" id="original-prompt">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Round Leaderboard -->
+                <div class="leaderboard-section">
+                    <h3>🏅 Round Leaderboard</h3>
                     <div id="round-leaderboard" class="leaderboard"></div>
                 </div>
+
             </div>
             
             <!-- Host Controls -->
@@ -296,42 +320,61 @@
 
         <!-- Daily Results Screen -->
         <div id="daily-results-screen" class="screen">
-            <h1>Daily Challenge Results</h1>
+            <div class="results-header">
+                <h1>🎯 Daily Challenge Results</h1>
+                <div class="challenge-badge">Daily Challenge</div>
+            </div>
             
-            <div class="results-layout">
-                <div class="player-performance">
-                    <h3>Your Performance</h3>
-                    <div class="performance-stats">
-                        <div class="stat-item">
-                            <span>Your Score:</span>
-                            <span id="daily-player-score">0</span>
-                        </div>
-                        <div class="stat-item">
-                            <span>Accuracy:</span>
-                            <span id="daily-accuracy">0%</span>
-                        </div>
+            <div class="results-container">
+                <!-- Score Overview -->
+                <div class="score-overview">
+                    <div class="score-card main-score">
+                        <div class="score-label">Your Score</div>
+                        <div class="score-value" id="daily-player-score">0</div>
+                        <div class="score-percentage" id="daily-accuracy">0%</div>
                     </div>
-                    
-                    <div class="prompt-comparison">
-                        <div class="prompt-box">
-                            <label>Your Prompt:</label>
-                            <div id="daily-player-prompt">Loading...</div>
+                    <div class="score-details">
+                        <div class="detail-item">
+                            <span class="detail-label">Accuracy</span>
+                            <span class="detail-value" id="daily-accuracy-detail">0%</span>
                         </div>
-                        <div class="prompt-box">
-                            <label>Original Prompt:</label>
-                            <div id="daily-original-prompt">Loading...</div>
+                        <div class="detail-item">
+                            <span class="detail-label">Difficulty</span>
+                            <span class="detail-value" id="daily-difficulty">Medium</span>
                         </div>
                     </div>
                 </div>
 
-                <div class="round-leaderboard">
-                    <h3>Daily Leaderboard</h3>
-                    <div id="daily-leaderboard" class="leaderboard"></div>
-                    
-                    <div class="daily-actions">
-                        <button class="btn btn-primary" onclick="retryDailyChallenge()">Try Again</button>
-                        <button class="btn btn-secondary" onclick="returnToLobby()">Return to Lobby</button>
+                <!-- Prompt Comparison -->
+                <div class="prompt-comparison-section">
+                    <h3>📝 Prompt Analysis</h3>
+                    <div class="prompt-comparison-grid">
+                        <div class="prompt-card your-prompt">
+                            <div class="prompt-header">
+                                <span class="prompt-icon">✍️</span>
+                                <span class="prompt-title">Your Prompt</span>
+                            </div>
+                            <div class="prompt-content" id="daily-player-prompt">Loading...</div>
+                        </div>
+                        <div class="prompt-card original-prompt">
+                            <div class="prompt-header">
+                                <span class="prompt-icon">🎯</span>
+                                <span class="prompt-title">Original Prompt</span>
+                            </div>
+                            <div class="prompt-content" id="daily-original-prompt">Loading...</div>
+                        </div>
                     </div>
+                </div>
+
+
+                <!-- Actions -->
+                <div class="results-actions">
+                    <button class="btn btn-primary btn-large" onclick="retryDailyChallenge()">
+                        🔄 Try Again
+                    </button>
+                    <button class="btn btn-secondary btn-large" onclick="returnToLobby()">
+                        🏠 Return to Lobby
+                    </button>
                 </div>
             </div>
         </div>

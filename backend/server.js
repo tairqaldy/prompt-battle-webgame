@@ -224,7 +224,7 @@ io.on('connection', (socket) => {
         return;
       }
 
-      if (roomState.gameState !== 'waiting') {
+      if (roomState.gameState === 'playing') {
         socket.emit('error', { message: 'Game already in progress' });
         return;
       }
@@ -241,14 +241,25 @@ io.on('connection', (socket) => {
         console.log(`[${new Date().toISOString()}] Game settings updated for room ${roomCode}:`, roomState.gameSettings);
       }
 
-      // Initialize game
+      // Initialize game - reset everything for a fresh start
       roomState.gameStarted = true;
+      roomState.gameState = 'playing';
       roomState.roundCount = 0;
       roomState.scores = {};
+      roomState.currentRound = null;
       
       // Initialize scores for all players
       roomState.players.forEach(player => {
         roomState.scores[player.name] = 0;
+      });
+      
+      console.log(`[${new Date().toISOString()}] Starting new game in room ${roomCode} - scores reset for all players`);
+
+      // Notify all players that a new game has started with reset scores
+      io.to(roomCode).emit('game-started', {
+        gameSettings: roomState.gameSettings,
+        players: roomState.players,
+        scores: roomState.scores
       });
 
       // Start first round
@@ -590,20 +601,20 @@ async function endRound(roomCode, roundId) {
       const difficultyData = round.difficultyData || {};
       
       const scoringResult = scoring.scoreAttempt(round.sourcePrompt, submission.promptText, difficultyInfo, difficultyData);
-      console.log(`[${new Date().toISOString()}] Score: ${scoringResult.score} (${difficultyInfo} difficulty, ${scoringResult.bonuses?.length || 0} bonuses)`);
+      console.log(`[${new Date().toISOString()}] Accuracy: ${scoringResult.accuracyScore}, Leaderboard Points: ${scoringResult.leaderboardPoints} (${difficultyInfo} difficulty, ${scoringResult.bonuses?.length || 0} bonuses)`);
       
-      // Update cumulative scores
+      // Update cumulative scores using leaderboard points (accuracy * difficulty multiplier)
       if (roomState.scores[submission.playerName] !== undefined) {
-        roomState.scores[submission.playerName] += scoringResult.score;
+        roomState.scores[submission.playerName] += scoringResult.leaderboardPoints;
       } else {
-        roomState.scores[submission.playerName] = scoringResult.score;
+        roomState.scores[submission.playerName] = scoringResult.leaderboardPoints;
       }
       
       await dbManager.saveResult(
         roundId,
         submission.playerName,
         submission.promptText,
-        scoringResult.score,
+        scoringResult.leaderboardPoints,
         scoringResult.matched.join(', '),
         scoringResult.missed.join(', ')
       );
@@ -611,17 +622,20 @@ async function endRound(roomCode, roundId) {
       results.push({
         playerName: submission.playerName,
         promptText: submission.promptText,
-        score: scoringResult.score,
+        accuracyScore: scoringResult.accuracyScore,
+        leaderboardPoints: scoringResult.leaderboardPoints,
+        difficulty: scoringResult.difficulty,
+        difficultyMultiplier: scoringResult.difficultyMultiplier,
         matched: scoringResult.matched,
         missed: scoringResult.missed,
         explanation: scoringResult.explanation
       });
     }
 
-    // Sort results by score
-    results.sort((a, b) => b.score - a.score);
+    // Sort results by leaderboard points
+    results.sort((a, b) => b.leaderboardPoints - a.leaderboardPoints);
     
-    console.log(`[${new Date().toISOString()}] Round results:`, results.map(r => `${r.playerName}: ${r.score}`));
+    console.log(`[${new Date().toISOString()}] Round results:`, results.map(r => `${r.playerName}: ${r.leaderboardPoints} (${r.accuracyScore} accuracy)`));
     console.log(`[${new Date().toISOString()}] Current scores:`, roomState.scores);
 
     // Check if game is complete
@@ -814,7 +828,10 @@ app.post('/api/score-prompt', (req, res) => {
     
     res.json({
       success: true,
-      score: result.score,
+      accuracyScore: result.accuracyScore,
+      leaderboardPoints: result.leaderboardPoints,
+      difficulty: result.difficulty,
+      difficultyMultiplier: result.difficultyMultiplier,
       matched: result.matched,
       missed: result.missed,
       explanation: result.explanation,
