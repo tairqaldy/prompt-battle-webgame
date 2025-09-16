@@ -245,21 +245,29 @@
             <!-- Host Controls -->
             <div id="host-results-actions" class="results-actions" style="display: none;">
                 <div id="next-round-section">
-                    <button class="btn btn-primary" onclick="nextRound()">Next Round</button>
+                    <button class="btn btn-primary btn-large" onclick="nextRound()">
+                        ➡️ Next Round
+                    </button>
                 </div>
                 <div id="game-complete-section" style="display: none;">
-                    <button class="btn btn-primary" onclick="viewFinalResults()">View Final Results</button>
+                    <button class="btn btn-primary btn-large" onclick="viewFinalResults()">
+                        🏆 View Final Results
+                    </button>
                 </div>
-                <button class="btn btn-secondary" onclick="returnToLobby()">Return to Lobby</button>
+                <button class="btn btn-secondary btn-large" onclick="returnToLobby()">
+                    🏠 Return to Lobby
+                </button>
             </div>
             
             <!-- Player Controls -->
             <div id="player-results-actions" class="results-actions" style="display: none;">
                 <div class="waiting-message">
-                    <h3>Waiting for Host</h3>
+                    <h3>⏳ Waiting for Host</h3>
                     <p>The host will start the next round or end the game.</p>
                 </div>
-                <button class="btn btn-secondary" onclick="returnToLobby()">Leave Game</button>
+                <button class="btn btn-secondary btn-large" onclick="returnToLobby()">
+                    🚪 Leave Game
+                </button>
             </div>
         </div>
 
@@ -381,25 +389,69 @@
 
         <!-- Final Results Screen -->
         <div id="final-screen" class="screen">
-            <h1>Game Complete!</h1>
+            <div class="final-header">
+                <h1>🎉 Game Complete!</h1>
+                <div class="celebration-badge">Final Results</div>
+            </div>
             
-            <div class="final-layout">
-                <div class="winner-section">
-                    <h2>🏆 Winner</h2>
+            <div class="final-container">
+                <!-- Winner Section -->
+                <div class="winner-celebration">
+                    <div class="winner-crown">👑</div>
                     <div class="winner-info">
-                        <div id="winner-name">Loading...</div>
-                        <div id="winner-score">0</div>
+                        <div class="winner-label">Champion</div>
+                        <div class="winner-name" id="winner-name">Loading...</div>
+                        <div class="winner-score">
+                            <span class="score-label">Final Score</span>
+                            <span class="score-value" id="winner-score">0</span>
+                        </div>
                     </div>
                 </div>
 
-                <div class="final-leaderboard">
-                    <h3>Final Rankings</h3>
-                    <div id="final-leaderboard" class="leaderboard"></div>
-                    
-                    <div class="final-actions">
-                        <button class="btn btn-primary" onclick="playAgain()">Play Again</button>
-                        <button class="btn btn-secondary" onclick="returnToLobby()">Return to Lobby</button>
+                <!-- Game Statistics -->
+                <div class="game-stats">
+                    <h3>📊 Game Statistics</h3>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon">🎯</div>
+                            <div class="stat-label">Total Rounds</div>
+                            <div class="stat-value" id="total-rounds-played">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">⏱️</div>
+                            <div class="stat-label">Game Duration</div>
+                            <div class="stat-value" id="game-duration">0 min</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">👥</div>
+                            <div class="stat-label">Players</div>
+                            <div class="stat-value" id="total-players">0</div>
+                        </div>
                     </div>
+                </div>
+
+                <!-- Final Leaderboard -->
+                <div class="final-leaderboard-section">
+                    <h3>🏅 Final Rankings</h3>
+                    <div id="final-leaderboard" class="final-leaderboard"></div>
+                </div>
+
+                <!-- Round Summary -->
+                <div class="round-summary">
+                    <h3>📝 Round Summary</h3>
+                    <div id="round-summary-content" class="summary-content">
+                        <!-- Round details will be inserted here -->
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="final-actions">
+                    <button class="btn btn-primary btn-large" onclick="playAgain()">
+                        🔄 Play Again
+                    </button>
+                    <button class="btn btn-secondary btn-large" onclick="returnToLobby()">
+                        🏠 Return to Lobby
+                    </button>
                 </div>
             </div>
         </div>

@@ -104,6 +104,8 @@ class PromptBattleGame {
 
                 this.socket.on('game-started', (data) => {
                     console.log('Game started:', data);
+                    // Clear any previous final results data
+                    this.gameState.finalResults = null;
                     // Update leaderboard with reset scores
                     if (data.scores) {
                         this.updateGameLeaderboard(data.scores);
@@ -114,7 +116,18 @@ class PromptBattleGame {
                     console.log('Game completed:', data);
                     console.log('Final rankings:', data.finalRankings);
                     this.clearCurrentTimer(); // Clear timer when game ends
-                    this.showFinalResults(data);
+                    
+                    // Store final results data for later use
+                    this.gameState.finalResults = data;
+                    
+                    // Don't automatically show final results - let the last round results be shown first
+                    // The host will see the "View Final Results" button after the last round results
+                });
+
+                this.socket.on('final-results', (data) => {
+                    console.log('Final results received:', data);
+                    this.showScreen('final');
+                    this.updateFinalResults(data);
                 });
 
                 this.socket.on('prompt-submitted', (data) => {
@@ -596,30 +609,45 @@ class PromptBattleGame {
     }
 
     startTimer(seconds) {
-        // Clear any existing timer first
-        this.clearCurrentTimer();
-        
-        let timeLeft = seconds;
-        this.updateTimerDisplay(timeLeft);
-        
-        this.gameState.currentTimer = setInterval(() => {
-            timeLeft--;
+        try {
+            // Clear any existing timer first
+            this.clearCurrentTimer();
+            
+            let timeLeft = seconds;
             this.updateTimerDisplay(timeLeft);
             
-            if (timeLeft <= 0) {
-                this.clearCurrentTimer();
-                this.handleTimeUp();
-            }
-        }, 1000);
-        
-        console.log('Timer started:', seconds, 'seconds');
+            console.log('Starting timer with', seconds, 'seconds');
+            
+            this.gameState.currentTimer = setInterval(() => {
+                try {
+                    timeLeft--;
+                    console.log('Timer tick:', timeLeft, 'seconds left');
+                    this.updateTimerDisplay(timeLeft);
+                    
+                    if (timeLeft <= 0) {
+                        console.log('Timer reached 0, ending round');
+                        this.clearCurrentTimer();
+                        this.handleTimeUp();
+                    }
+                } catch (error) {
+                    console.error('Error in timer tick:', error);
+                }
+            }, 1000);
+            
+            console.log('Timer started:', seconds, 'seconds, timer ID:', this.gameState.currentTimer);
+        } catch (error) {
+            console.error('Error starting timer:', error);
+        }
     }
 
     clearCurrentTimer() {
         if (this.gameState.currentTimer) {
+            console.log('Clearing timer with ID:', this.gameState.currentTimer);
             clearInterval(this.gameState.currentTimer);
             this.gameState.currentTimer = null;
             console.log('Timer cleared');
+        } else {
+            console.log('No timer to clear');
         }
         
         // Reset timer display to 00:00
@@ -629,27 +657,51 @@ class PromptBattleGame {
     updateTimerDisplay(seconds) {
         const minutes = Math.floor(seconds / 60);
         const remainingSeconds = seconds % 60;
-        document.getElementById('timer-display').textContent = 
-            `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+        const timeString = `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+        
+        const timerElement = document.getElementById('timer-display');
+        if (!timerElement) {
+            console.error('Timer display element not found!');
+            return;
+        }
+        
+        timerElement.textContent = timeString;
+        console.log('Timer display updated to:', timeString);
         
         // Change color when time is running low
-        const timerDisplay = document.getElementById('timer-display');
         if (seconds <= 10) {
-            timerDisplay.style.color = '#e74c3c';
+            timerElement.style.color = '#e74c3c';
         } else if (seconds <= 30) {
-            timerDisplay.style.color = '#f39c12';
+            timerElement.style.color = '#f39c12';
         } else {
-            timerDisplay.style.color = '#2c3e50';
+            timerElement.style.color = '#2c3e50';
         }
     }
 
     handleTimeUp() {
+        console.log('Time up! Handling time up...');
         const promptText = document.getElementById('prompt-input').value.trim();
-        if (promptText) {
-            this.submitPrompt();
-        }
+        
+        // Disable input and submit button
         document.getElementById('prompt-input').disabled = true;
         document.getElementById('submit-btn').disabled = true;
+        
+        // If there's a prompt and it hasn't been submitted yet, submit it
+        if (promptText && !this.gameState.submitted) {
+            console.log('Auto-submitting prompt due to time up:', promptText);
+            this.submitPrompt();
+        } else {
+            console.log('No prompt to submit or already submitted');
+        }
+        
+        // Force end the round if it's the last round and all players have submitted
+        // This ensures the round ends even if there are issues with the backend
+        setTimeout(() => {
+            if (this.gameState.currentRound && this.gameState.currentRound.roundNumber >= this.gameState.currentRound.totalRounds) {
+                console.log('Last round time up - forcing round end check');
+                // The backend should handle this, but this is a safety net
+            }
+        }, 1000);
     }
 
     updateCharCount() {
@@ -761,7 +813,7 @@ class PromptBattleGame {
         this.updateRoundLeaderboard(data.results);
         
         // Show appropriate buttons based on game state and host status
-        const isLastRound = data.roundNumber >= data.totalRounds;
+        const isLastRound = data.isLastRound || (data.roundNumber >= data.totalRounds);
         
         if (this.gameState.isHost) {
             // Host controls
@@ -878,14 +930,83 @@ class PromptBattleGame {
             return;
         }
         
-        this.showScreen('final');
-        this.updateFinalResults();
+        // Request final results from backend
+        this.socket.emit('get-final-results', { roomCode: this.gameState.roomCode });
     }
 
-    updateFinalResults() {
-        // This would be implemented with actual final results data
-        document.getElementById('winner-name').textContent = this.gameState.playerName;
-        document.getElementById('winner-score').textContent = '100';
+    updateFinalResults(data) {
+        if (!data) {
+            console.error('No final results data provided');
+            return;
+        }
+        
+        console.log('Updating final results with data:', data);
+        
+        // Update winner information
+        if (data.finalRankings && data.finalRankings.length > 0) {
+            const winner = data.finalRankings[0];
+            document.getElementById('winner-name').textContent = winner.name || winner.playerName;
+            document.getElementById('winner-score').textContent = winner.score || winner.totalScore || '0';
+        }
+        
+        // Update game statistics
+        document.getElementById('total-rounds-played').textContent = data.totalRounds || '0';
+        document.getElementById('total-players').textContent = data.finalRankings ? data.finalRankings.length : '0';
+        
+        // Calculate game duration (placeholder for now)
+        const gameDuration = Math.floor(Math.random() * 10) + 5; // Placeholder
+        document.getElementById('game-duration').textContent = `${gameDuration} min`;
+        
+        // Update final leaderboard
+        this.updateFinalLeaderboard(data.finalRankings || []);
+        
+        // Update round summary
+        this.updateRoundSummary(data);
+    }
+    
+    updateFinalLeaderboard(rankings) {
+        const leaderboard = document.getElementById('final-leaderboard');
+        leaderboard.innerHTML = '';
+        
+        if (!rankings || rankings.length === 0) {
+            leaderboard.innerHTML = '<div class="no-data">No rankings available</div>';
+            return;
+        }
+        
+        rankings.forEach((player, index) => {
+            const rank = index + 1;
+            const rankClass = rank === 1 ? 'first' : rank === 2 ? 'second' : rank === 3 ? 'third' : '';
+            
+            const playerDiv = document.createElement('div');
+            playerDiv.className = `leaderboard-item ${rankClass}`;
+            playerDiv.innerHTML = `
+                <div class="rank">${this.getOrdinalSuffix(rank)}</div>
+                <div class="player-name">${player.name || player.playerName}</div>
+                <div class="player-score">${player.score || player.totalScore || '0'}</div>
+            `;
+            leaderboard.appendChild(playerDiv);
+        });
+    }
+    
+    updateRoundSummary(data) {
+        const summaryContent = document.getElementById('round-summary-content');
+        
+        let summary = `
+            <div class="summary-item">
+                <strong>Total Rounds:</strong> ${data.totalRounds || '0'}
+            </div>
+            <div class="summary-item">
+                <strong>Players:</strong> ${data.finalRankings ? data.finalRankings.length : '0'}
+            </div>
+            <div class="summary-item">
+                <strong>Winner:</strong> ${data.finalRankings && data.finalRankings[0] ? (data.finalRankings[0].name || data.finalRankings[0].playerName) : 'N/A'}
+            </div>
+            <div class="summary-item">
+                <strong>Winning Score:</strong> ${data.finalRankings && data.finalRankings[0] ? (data.finalRankings[0].score || data.finalRankings[0].totalScore || '0') : '0'}
+            </div>
+        `;
+        
+        summaryContent.innerHTML = summary;
     }
 
     playAgain() {

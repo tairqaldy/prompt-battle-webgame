@@ -208,6 +208,24 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('get-final-results', async (data) => {
+    console.log('Host requesting final results for room:', data.roomCode);
+    
+    const roomState = gameRooms.get(data.roomCode);
+    if (!roomState) {
+      socket.emit('error', { message: 'Room not found' });
+      return;
+    }
+    
+    if (!roomState.finalResults) {
+      socket.emit('error', { message: 'Final results not available yet' });
+      return;
+    }
+    
+    // Send final results to the requesting host
+    socket.emit('final-results', roomState.finalResults);
+  });
+
   socket.on('start-game', async (data) => {
     try {
       const { roomCode, settings } = data;
@@ -643,6 +661,18 @@ async function endRound(roomCode, roundId) {
     
     console.log(`[${new Date().toISOString()}] Game completion check: roundCount=${roomState.roundCount}, totalRounds=${roomState.totalRounds}, isComplete=${isGameComplete}`);
     
+    // Always emit round-ended first to show round results
+    io.to(roomCode).emit('round-ended', {
+      roundId: roundId,
+      sourcePrompt: round.sourcePrompt,
+      results: results,
+      stats: scoring.getScoringStats(results),
+      roundNumber: roomState.roundCount,
+      totalRounds: roomState.totalRounds,
+      currentScores: roomState.scores,
+      isLastRound: isGameComplete
+    });
+    
     if (isGameComplete) {
       roomState.gameState = 'finished';
       
@@ -651,8 +681,8 @@ async function endRound(roomCode, roundId) {
         .map(([name, score]) => ({ name, score }))
         .sort((a, b) => b.score - a.score);
       
-      // Notify all players with final results
-      io.to(roomCode).emit('game-completed', {
+      // Store final results data for later use (host will choose when to show them)
+      roomState.finalResults = {
         roundId: roundId,
         sourcePrompt: round.sourcePrompt,
         results: results,
@@ -660,18 +690,9 @@ async function endRound(roomCode, roundId) {
         stats: scoring.getScoringStats(results),
         roundNumber: roomState.roundCount,
         totalRounds: roomState.totalRounds
-      });
-    } else {
-      // Notify all players with round results
-    io.to(roomCode).emit('round-ended', {
-      roundId: roundId,
-      sourcePrompt: round.sourcePrompt,
-      results: results,
-        stats: scoring.getScoringStats(results),
-        roundNumber: roomState.roundCount,
-        totalRounds: roomState.totalRounds,
-        currentScores: roomState.scores
-    });
+      };
+      
+      console.log(`[${new Date().toISOString()}] Game completed, final results stored for host to view`);
     }
 
     roomState.gameState = isGameComplete ? 'finished' : 'waiting';
