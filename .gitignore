@@ -16,6 +16,9 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
+# ngrok configuration (contains auth tokens)
+ngrok.env
+
 # Build artifacts
 dist/
 build/

@@ -98,8 +98,9 @@ This project serves as my **Project #1** for Fontys ICT, demonstrating proficien
 ### Deployment & Hosting
 - **Local development** with hot-reload
 - **Network access** via IP configuration
-- **Public hosting** through ngrok tunneling
-- **Automated startup scripts** for easy deployment
+- **Public hosting** through ngrok tunneling with reserved domain support
+- **Consistent domain hosting** - same URL every server restart
+- **Automated startup scripts** for easy deployment and ngrok configuration
 
 ---
 
@@ -251,9 +252,20 @@ node server.js
 ### Using the Startup Script
 ```bash
 # Double-click start-game.bat for interactive menu
+# Choose option 5 to configure your ngrok reserved domain
 # Choose option 2 for public access via ngrok
-# Share the ngrok URL with friends!
+# Share your consistent ngrok URL with friends!
 ```
+
+### ngrok Reserved Domain Configuration
+The project now supports ngrok reserved domains for consistent hosting URLs:
+
+1. **Setup your domain**: Use option `[5] Setup ngrok domain configuration` in start-game.bat
+2. **Consistent URL**: Your game will always be hosted on the same domain
+3. **Easy sharing**: No need to update links when restarting the server
+4. **Secure configuration**: Auth tokens are git-ignored for privacy
+
+For detailed setup instructions, see: [ngrok Reserved Domain Setup Guide](docs/NGROK-RESERVED-DOMAIN-SETUP.md)
 
 ### Manual Commands
 ```bash
@@ -341,6 +353,7 @@ The game can be used for:
 ### Technical Documentation
 - [API Documentation](docs/api-documentation.md)
 - [Deployment Guide](docs/updates/ngrok-host-cheat-sheet-tairqaldy.md)
+- [ngrok Reserved Domain Setup](docs/NGROK-RESERVED-DOMAIN-SETUP.md)
 - [Quick Start Commands](docs/quick-start-commands-tairqaldy.md)
 
 ### Project Documentation
