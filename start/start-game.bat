@@ -12,22 +12,24 @@ echo.
 echo Choose startup option:
 echo.
 echo [1] Local only (localhost:3000)
-echo [2] ngrok only (server already running)
-echo [3] Setup ngrok authtoken
-echo [4] Setup ngrok domain configuration
-echo [5] Kill all Node processes
-echo [6] Show network info
+echo [2] Local + ngrok (public access)
+echo [3] ngrok only (server already running)
+echo [4] Setup ngrok authtoken
+echo [5] Setup ngrok domain configuration
+echo [6] Kill all Node processes
+echo [7] Show network info
 echo [0] Exit
 echo.
 
-set /p choice="Enter your choice (0-6): "
+set /p choice="Enter your choice (0-7): "
 
 if "%choice%"=="1" goto local
-if "%choice%"=="2" goto ngrok-only
-if "%choice%"=="3" goto setup-ngrok
-if "%choice%"=="4" goto setup-domain
-if "%choice%"=="5" goto kill
-if "%choice%"=="6" goto network
+if "%choice%"=="2" goto local-ngrok
+if "%choice%"=="3" goto ngrok-only
+if "%choice%"=="4" goto setup-ngrok
+if "%choice%"=="5" goto setup-domain
+if "%choice%"=="6" goto kill
+if "%choice%"=="7" goto network
 if "%choice%"=="0" goto exit
 goto menu
 
@@ -35,11 +37,68 @@ goto menu
 echo.
 echo Starting local server...
 echo.
+cd ..
 cd backend
 start "Prompt Battle Server" cmd /k "node server.js"
 echo Server starting on http://localhost:3000
 echo.
+echo Press any key to return to menu...
 pause
+cd ..
+cd start
+goto menu
+
+:local-ngrok
+echo.
+echo Starting local server + ngrok with reserved domain...
+echo.
+
+REM Load ngrok configuration
+if not exist "..\ngrok.env" (
+    echo ERROR: ngrok.env file not found!
+    echo Please create ngrok.env file in the project root directory.
+    echo See ngrok.env.example for template.
+    echo.
+    pause
+    goto menu
+)
+
+REM Read domain from ngrok.env (get first non-empty NGROK_DOMAIN)
+for /f "usebackq tokens=2 delims==" %%i in (`findstr /c:"NGROK_DOMAIN" "..\ngrok.env"`) do (
+    if not "%%i"==" " (
+        if not "%%i"=="" (
+            set NGROK_DOMAIN=%%i
+            goto domain_found
+        )
+    )
+)
+
+:domain_found
+if "%NGROK_DOMAIN%"=="" (
+    echo ERROR: NGROK_DOMAIN not set in ngrok.env
+    echo.
+    pause
+    goto menu
+)
+
+echo Starting local server...
+cd ..
+cd backend
+start "Prompt Battle Server" cmd /k "node server.js"
+echo Waiting for server to start...
+timeout /t 3 /nobreak > nul
+cd ..
+echo Starting ngrok tunnel...
+start "ngrok Tunnel" cmd /k "ngrok.exe http 3000 --domain=%NGROK_DOMAIN%"
+echo.
+echo Server starting on http://localhost:3000
+echo ngrok tunnel starting with domain: %NGROK_DOMAIN%
+echo.
+echo Your game will be available at: https://%NGROK_DOMAIN%
+echo.
+echo Press any key to return to menu...
+pause
+cd start
 goto menu
 
 :ngrok-only
@@ -57,9 +116,17 @@ if not exist "..\ngrok.env" (
     goto menu
 )
 
-REM Read domain from ngrok.env
-for /f "usebackq tokens=2 delims==" %%i in (`findstr /c:"NGROK_DOMAIN" "..\ngrok.env"`) do set NGROK_DOMAIN=%%i
+REM Read domain from ngrok.env (get first non-empty NGROK_DOMAIN)
+for /f "usebackq tokens=2 delims==" %%i in (`findstr /c:"NGROK_DOMAIN" "..\ngrok.env"`) do (
+    if not "%%i"==" " (
+        if not "%%i"=="" (
+            set NGROK_DOMAIN=%%i
+            goto domain_found2
+        )
+    )
+)
 
+:domain_found2
 if "%NGROK_DOMAIN%"=="" (
     echo ERROR: NGROK_DOMAIN not set in ngrok.env
     echo.
@@ -67,12 +134,15 @@ if "%NGROK_DOMAIN%"=="" (
     goto menu
 )
 
+cd ..
 start "ngrok Tunnel" cmd /k "ngrok.exe http 3000 --domain=%NGROK_DOMAIN%"
 echo ngrok tunnel starting with domain: %NGROK_DOMAIN%
 echo.
 echo Your game will be available at: https://%NGROK_DOMAIN%
 echo.
+echo Press any key to return to menu...
 pause
+cd start
 goto menu
 
 :setup-ngrok
