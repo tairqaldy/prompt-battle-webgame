@@ -2,7 +2,7 @@
 
 *A comprehensive game development project exploring AI, software engineering, and multiplayer gaming*
 
-**⭐ If you like this project, consider giving it a star to support and follow its progress!**
+*⭐ If you like this project, consider giving it a star to support and follow its progress!*
 ---
 
 ## 🎯 Project Overview
