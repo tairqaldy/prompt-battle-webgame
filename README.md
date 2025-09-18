@@ -11,7 +11,10 @@
 
 ## 🎥 DEMO Video  
 
-[![Click to Watch Demo Video](https://img.youtube.com/vi/j7SLrSRv9DM/hqdefault.jpg)](https://youtu.be/j7SLrSRv9DM)
+[![Watch the demo on YouTube](https://img.shields.io/badge/▶%20Watch%20Demo-red?logo=youtube&logoColor=white)](https://youtu.be/j7SLrSRv9DM)  
+
+[![Demo Preview](https://img.youtube.com/vi/j7SLrSRv9DM/maxresdefault.jpg)](https://youtu.be/j7SLrSRv9DM)
+
 
 ### 🎮 The Core Concept
 
