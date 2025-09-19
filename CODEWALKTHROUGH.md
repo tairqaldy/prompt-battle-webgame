@@ -1,4 +1,4 @@
-# CODEWALKTHROUGH.md
+# CODEWALKTHROUGH.md 
 
 ## Overview
 
@@ -302,3 +302,6 @@ A small BAT script to start the backend locally; handy when sharing via ngrok. (
 * Add persistence for `finalResults` to allow late reconnection.
 * Consider synonym lists (WordNet-like) or lightweight embeddings for better semantics, keeping determinism.
 * Add unit tests for `scoring.js` categories and penalties.
+* Fix the Scoring system to work better
+* Add multi-langiage support
+* Change current Dataset to my own one

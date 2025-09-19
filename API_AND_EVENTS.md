@@ -1,4 +1,4 @@
-# API\_AND\_EVENTS.md
+# API\_AND\_EVENTS.md 
 
 > Transport: **HTTP (REST)** for room management & admin actions; **Socket.IO** for realtime gameplay.
 > Auth: none (MVP / LAN play). Rate-limits can be added at the reverse proxy if needed.
