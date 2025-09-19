@@ -44,8 +44,8 @@ const frontendPath = path.join(__dirname, '../frontend');
 app.use(express.static(frontendPath));
 
 // Game state management
-const gameRooms = new Map(); // roomCode -> { players: [], gameState: 'waiting'|'playing'|'finished', currentRound: null, gameSettings: {}, roundCount: 0, totalRounds: 3, scores: {} }
-const playerSockets = new Map(); // playerId -> socket
+  const gameRooms = new Map(); // roomCode -> { players: [], gameState: 'waiting'|'playing'|'finished', currentRound: null, gameSettings: {}, roundCount: 0, totalRounds: 3, scores: {} }
+  const playerSockets = new Map(); // playerId -> socket
 
 // Utility functions
 function generateRoomCode() {
