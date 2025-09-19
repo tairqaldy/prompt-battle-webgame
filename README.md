@@ -2,11 +2,19 @@
 
 *A comprehensive game development project exploring AI, software engineering, and multiplayer gaming*
 
+*⭐ If you like this project, consider giving it a star to support and follow its progress!*
 ---
 
 ## 🎯 Project Overview
 
 **Prompt Battle WebGame** is a real-time multiplayer game that challenges players to reverse-engineer AI image generation prompts. As a Software Engineering student at Fontys ICT, I developed this project to explore the intersection of artificial intelligence, game development, and modern web technologies. The game combines competitive gameplay with educational elements, helping players understand how AI interprets and generates visual content.
+
+## 🎥 DEMO Video  
+
+[![Watch the demo on YouTube](https://img.shields.io/badge/▶%20Watch%20Demo-red?logo=youtube&logoColor=white)](https://youtu.be/j7SLrSRv9DM)  
+
+[![Demo Preview](https://img.youtube.com/vi/j7SLrSRv9DM/maxresdefault.jpg)](https://youtu.be/j7SLrSRv9DM)
+
 
 ### 🎮 The Core Concept
 
